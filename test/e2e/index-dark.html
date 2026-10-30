@@ -212,7 +212,7 @@ record('palette source readable', paletteProbe !== '', `color-scheme=${palettePr
 // 7. The Diagram/Code toggle switches views.
 const firstCard = cards()[0];
 const firstPre = firstCard.querySelector('.dsh-mdm-source pre');
-const button = firstCard.querySelector('.dsh-mdm-btn');
+const button = firstCard.querySelector('[data-dsh-mermaid-action="view"]');
 const hiddenBefore = firstPre.hidden;
 button.click();
 await new Promise((resolve) => setTimeout(resolve, 60));
@@ -242,16 +242,20 @@ record('streamed block renders once settled', settled, `${streamNodes} svg node(
 record('browser half reports lifecycle events', (window.__dshMermaidReports ?? []).length > 0,
   `${(window.__dshMermaidReports ?? []).length} report(s), first=${window.__dshMermaidReports?.[0] ?? '-'}`);
 
-// 8c. Coexistence: a block another renderer already claimed, and a fence framed by
-// the Markdown preview. Neither may grow a second card; the framed one replaces
-// its frame instead of nesting inside it.
+// 8c. Coexistence with another renderer, and the application's own code-block
+// frame. 2.0.21 renders a fence as
+//   div.md-code-block > div[data-code-block-banner] + div[data-code-block-content] > pre > code
+// in the chat and in the preview alike: the card takes the frame's place and
+// adopts the frame, hiding its duplicate label/toolbar.
 const preview = document.createElement('div');
 preview.className = 'md-editor';
 preview.innerHTML = [
   '<pre data-mermaid-processed="true"><code>flowchart LR\n  claimed --> block</code></pre>',
-  '<div class="md-code-block">',
-  '  <div class="md-code-block-head">Code</div>',
-  '  <pre><code class="language-mermaid">flowchart LR\n  framed --> block</code></pre>',
+  '<div class="md-code-block" id="framed" data-probe>',
+  '  <div class="bannerWrap"><div data-code-block-banner>mermaid | Copy</div></div>',
+  '  <div data-code-block-content>',
+  '    <pre class="plain"><code>flowchart LR\n  framed --> block</code></pre>',
+  '  </div>',
   '</div>',
 ].join('');
 document.body.append(preview);
@@ -259,14 +263,17 @@ await new Promise((resolve) => setTimeout(resolve, 400));
 record('claimed block left alone', preview.querySelector('[data-mermaid-processed]')?.closest('.dsh-mdm') === null);
 const framedAdopted = await waitFor(() => preview.querySelector('.dsh-mdm') !== null, 10000);
 record('framed fence adopted', framedAdopted);
-record('preview frame replaced by the card',
-  preview.querySelector('.md-code-block') === null
-  && preview.querySelector('.dsh-mdm')?.parentElement === preview,
-  `frame=${preview.querySelector('.md-code-block') === null ? 'gone' : 'still there'}`);
+const framedCard = preview.querySelector('.dsh-mdm');
+const framedFrame = preview.querySelector('#framed');
+record('card takes the frame position', framedCard?.parentElement === preview && framedFrame?.closest('.dsh-mdm') === framedCard,
+  `frameInCard=${framedFrame?.closest('.dsh-mdm') === framedCard}`);
+record("frame's own label is hidden", framedFrame?.querySelector('.bannerWrap')?.hidden === true);
+record('highlighted body kept', framedFrame?.querySelector('[data-code-block-content]')?.hidden === false);
+record('card offers copy in its place', framedCard?.querySelector('[data-dsh-mermaid-action="copy"]') !== null);
 preview.remove();
 
 // 9. The viewer: a rendered diagram opens enlarged, zooms, and closes.
-const expandButton = [...firstCard.querySelectorAll('.dsh-mdm-btn')].find((node) => node.textContent === 'Expand');
+const expandButton = firstCard.querySelector('[data-dsh-mermaid-action="expand"]');
 record('expand control present', expandButton !== undefined && !expandButton.hidden);
 expandButton.click();
 const viewer = await waitFor(() => document.querySelector('.dsh-mdm-lb') !== null, 3000);
@@ -331,7 +338,7 @@ record('on-demand block stays unrendered', lazy.closest('.dsh-mdm')?.getAttribut
   `state=${lazy.closest('.dsh-mdm')?.getAttribute('data-dsh-mermaid-state')}`);
 record('on-demand keeps the source visible', lazy.hidden === false);
 
-lazy.closest('.dsh-mdm').querySelector('.dsh-mdm-btn').click();
+lazy.closest('.dsh-mdm').querySelector('[data-dsh-mermaid-action="view"]').click();
 const lazySvg = await waitFor(() => lazy.closest('.dsh-mdm')?.querySelector('.dsh-mdm-svg svg') !== null, 20000);
 record('on-demand click renders', lazySvg, `state=${lazy.closest('.dsh-mdm')?.getAttribute('data-dsh-mermaid-state')}`);
 record('on-demand click hides the source', lazy.hidden === true);
@@ -356,7 +363,7 @@ record('unmount leaves every source block', restored === 4, `${restored} mermaid
 // `?viewer=1` leaves the viewer open for a screenshot.
 if (new URLSearchParams(location.search).has('viewer')) {
   const first = document.querySelector('.dsh-mdm');
-  [...first.querySelectorAll('.dsh-mdm-btn')].find((node) => node.textContent === 'Expand')?.click();
+  first.querySelector('[data-dsh-mermaid-action="expand"]')?.click();
 }
 document.title = `E2E ${results.filter((r) => r.ok).length}/${results.length}`;
 window.__E2E__ = results;

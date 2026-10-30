@@ -27,6 +27,10 @@ globalThis.DOMParser = window.DOMParser;
 globalThis.MutationObserver = window.MutationObserver;
 globalThis.ResizeObserver = window.ResizeObserver;
 globalThis.Node = window.Node;
+// The bundle is evaluated with the page's `window` but resolves bare globals
+// against the host realm; Node ships a `navigator` without a clipboard, so point
+// it at the page's navigator to exercise the real copy path.
+Object.defineProperty(globalThis, 'navigator', { configurable: true, value: window.navigator });
 
 /**
  * jsdom delivers MutationObserver callbacks on its own microtask queue, which is
@@ -263,7 +267,7 @@ const card = flow.pre.closest('.dsh-mdm');
 assert.ok(card !== null, 'a mermaid block must be adopted into a card');
 assert.equal(card.getAttribute('data-dsh-mermaid'), PKG);
 assert.equal(card.getAttribute('data-dsh-mermaid-state'), 'idle', 'the default mode must not render');
-assert.ok(card.querySelector('.dsh-mdm-btn') !== null, 'the card must carry a view control');
+assert.ok(card.querySelector('[data-dsh-mermaid-action="view"]') !== null, 'the card must carry a view control');
 assert.equal(flow.pre.closest('.dsh-mdm-source') !== null, true, 'the source block must move into the card');
 assert.equal(flow.pre.hidden, false, 'the source must stay visible until render is requested');
 assert.equal(plain.pre.closest('.dsh-mdm'), null, 'a non-mermaid block must stay untouched');
@@ -277,7 +281,7 @@ console.log('ok   on demand          cards adopted, nothing rendered, runtime no
 //#endregion
 
 //#region render on request
-const button = card.querySelector('.dsh-mdm-btn');
+const button = card.querySelector('[data-dsh-mermaid-action="view"]');
 button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 await settle();
 
@@ -305,7 +309,7 @@ console.log('ok   cache              switching views reuses the rendered diagram
 //#endregion
 
 //#region viewer
-const expand = [...card.querySelectorAll('.dsh-mdm-btn')].find((node) => node.textContent === 'Expand');
+const expand = card.querySelector('[data-dsh-mermaid-action="expand"]');
 assert.ok(expand !== undefined, 'a rendered card must offer the enlarge control');
 assert.equal(expand.hidden, false, 'the enlarge control must appear once a diagram exists');
 expand.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
@@ -399,30 +403,60 @@ assert.equal(echo.closest('.dsh-mdm'), null, 'a source echo inside another card 
 console.log('ok   coexistence       blocks claimed by another renderer are left alone');
 //#endregion
 
-//#region preview frame
-// The Markdown preview frames every fence in a `.md-code-block`; the card takes
-// the frame's place instead of being nested inside it.
+//#region code-block frame
+// Both the chat renderer and the document preview wrap a fence in the
+// application's `.md-code-block` frame; 2.0.21's shape is
+// frame > bannerWrap + [data-code-block-content] > pre > code. The card takes the
+// frame's place and adopts the frame itself: the source keeps the application's
+// highlighting, while the card's header replaces the frame's label and toolbar.
 const frame = window.document.createElement('div');
 frame.className = 'md-code-block';
-const frameHead = window.document.createElement('div');
-frameHead.textContent = 'Code';
-const framed = window.document.createElement('pre');
-framed.textContent = 'flowchart LR\n  T --> U';
+const frameBannerWrap = window.document.createElement('div');
+const frameBanner = window.document.createElement('div');
+frameBanner.setAttribute('data-code-block-banner', '');
+frameBanner.textContent = 'mermaid | Copy';
+frameBannerWrap.append(frameBanner);
 const frameBody = window.document.createElement('div');
+frameBody.setAttribute('data-code-block-content', '');
+const framed = window.document.createElement('pre');
+framed.className = 'plain';
+const framedCode = window.document.createElement('code');
+framedCode.textContent = 'flowchart LR\n  T --> U';
+framed.append(framedCode);
 frameBody.append(framed);
-frame.append(frameHead, frameBody);
+frame.append(frameBannerWrap, frameBody);
 preview.append(frame);
 
 await settle();
 const framedCard = preview.querySelector('.dsh-mdm');
 assert.ok(framedCard !== null, 'a fenced block inside a frame must still be adopted');
-assert.equal(framed.closest('.dsh-mdm') !== null, true, 'the source must move into the card');
 assert.equal(framedCard.parentElement, preview, 'the card must sit where the frame sat');
-assert.equal(preview.querySelector('.md-code-block'), null, 'the frame must be gone, not filled with a card');
-console.log('ok   preview frame      the card replaces the frame instead of nesting');
+assert.equal(framed.closest('.dsh-mdm'), framedCard, 'the source must live inside the card');
+assert.equal(framedCard.querySelector('.md-code-block'), frame, 'the frame itself is adopted, not deleted');
+assert.equal(frameBannerWrap.hidden, true, "the frame's own label and toolbar are hidden");
+assert.equal(frameBody.hidden, false, 'the highlighted body stays available');
 
-preview.remove();
+// The card owns the copy action now that the frame's toolbar is gone.
+const copy = framedCard.querySelector('[data-dsh-mermaid-action="copy"]');
+assert.ok(copy !== null, 'the card must offer copy in place of the hidden toolbar');
+let copiedText = null;
+Object.defineProperty(window.navigator, 'clipboard', {
+	configurable: true,
+	value: { writeText: async (text) => { copiedText = text; } },
+});
+copy.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await wait(20);
+assert.match(copiedText ?? '', /flowchart LR[\s\S]*T --> U/, 'copy must copy the fence source');
+
+// The first press is the render request (manual mode), the second switches views.
+const viewToggle = framedCard.querySelector('[data-dsh-mermaid-action="view"]');
+viewToggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 await settle();
+assert.equal(framedCard.getAttribute('data-dsh-mermaid-state'), 'ok', 'the framed fence must render on request');
+assert.equal(framedCard.querySelector('.dsh-mdm-source').hidden, true, 'the diagram view hides the adopted frame');
+viewToggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+assert.equal(framedCard.querySelector('.dsh-mdm-source').hidden, false, 'the code view shows the adopted frame');
+console.log('ok   code-block frame   the card replaces the frame and keeps its body');
 //#endregion
 
 //#region status + settings
@@ -446,7 +480,7 @@ const broken = addBlock('mermaid', 'flowchart LR\n  FAILME --> B');
 await settle();
 const brokenCard = broken.pre.closest('.dsh-mdm');
 assert.ok(brokenCard !== null, 'the broken block must still be adopted');
-brokenCard.querySelector('.dsh-mdm-btn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+brokenCard.querySelector('[data-dsh-mermaid-action="view"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 await settle();
 assert.match(brokenCard.querySelector('.dsh-mdm-msg').textContent, /render|渲染/i);
 assert.match(brokenCard.querySelector('.dsh-mdm-err').textContent, /Parse error/);
@@ -485,6 +519,9 @@ const restored = [...window.document.querySelectorAll('#transcript pre')].filter
 	/flowchart|sequenceDiagram|pie/.test(pre.textContent ?? ''),
 );
 assert.equal(restored.length, 7, 'unmounting must hand every adopted code block back to the document');
+// The adopted frame is restored with its chrome visible and outside any card.
+assert.equal(frame.closest('.dsh-mdm'), null, 'the frame must leave the card on unmount');
+assert.equal(frameBannerWrap.hidden, false, "the frame's own label comes back on unmount");
 assert.equal(restored.every((pre) => pre.hidden === false), true, 'restored code blocks must be visible again');
 console.log('ok   teardown           unmount removes cards and restores every source block');
 

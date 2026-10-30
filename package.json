@@ -1,6 +1,6 @@
 {
   "name": "dsh-mermaid-plus",
-  "version": "0.2.6",
+  "version": "0.3.0",
   "description": "Mermaid diagrams for DeepSeek Harness: on-demand rendering, theme-aware, with a fullscreen zoom viewer.",
   "license": "MIT",
   "author": "pidongqianqian",

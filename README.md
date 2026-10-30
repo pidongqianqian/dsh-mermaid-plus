@@ -60,7 +60,7 @@ The Mermaid runtime is **bundled** with the package (`vendor/mermaid.esm.min.mjs
 
 ## Compatibility
 
-- Built and verified against DSH `0.2.0-rc.2` (Desktop `2.0.17-next`).
+- Built and verified against DSH `0.2.0-rc.2`; last checked on Desktop `2.0.21-next` (code-block DOM `div.md-code-block > [data-code-block-content] > pre`).
 - DSH is a developer preview: client plugin contracts, slot keys, and rendered Markdown can change between releases. This plugin decorates the rendered `<pre><code>` output, which is the part most likely to shift; if a release breaks it, the cards simply stop appearing and the code blocks stay intact.
 - Requires a browser or Electron renderer with `IntersectionObserver` (used only in "when visible" mode) and `DOMParser`.
 

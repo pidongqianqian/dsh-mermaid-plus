@@ -73,14 +73,13 @@ the title, so a browser that renders nothing fails instead of passing vacuously.
 One suite is skipped on CI on purpose: `test/host-mount.test.mjs` mounts the
 plugin on the real `webServer` service, and the published
 `@deepseek-ai/dsh-host-webserver` is still the 0.0.x generation (it registers
-`httpServer`). Locally, symlink the application's packages into `node_modules`
-to run it:
+`httpServer`). It needs the application's own 0.2.x package.
 
-```sh
-mkdir -p node_modules/@deepseek-ai
-ln -s "/Applications/DSH NEXT.app/Contents/Resources/app/node_modules/@deepseek-ai/cordis" node_modules/@deepseek-ai/cordis
-ln -s "/Applications/DSH NEXT.app/Contents/Resources/app/node_modules/@deepseek-ai/dsh-host-webserver" node_modules/@deepseek-ai/dsh-host-webserver
-```
+Since Desktop 2.0.20 the application ships as `app.asar`, so the symlink recipe
+that used to work no longer applies. The suite prints a skip instead of failing;
+everything else — the Host route handler, the browser half and the real-browser
+suite — runs everywhere. Treat a local run of the mount suite as optional
+verification, and rely on the browser suite for behaviour.
 
 ## Releasing
 

@@ -88,6 +88,8 @@ window.__ModuleLoader__.load({
 				zoomOut: '缩小',
 				zoomFit: '适应窗口',
 				viewerHint: '拖动平移 · 滚轮缩放 · 双击适应窗口 · Esc 关闭',
+				copy: '复制',
+				copied: '已复制',
 				settingsTitle: 'Mermaid 图表',
 				modeManual: '手动',
 				modeVisible: '滚动可见',
@@ -114,6 +116,8 @@ window.__ModuleLoader__.load({
 				zoomOut: 'Zoom out',
 				zoomFit: 'Fit to window',
 				viewerHint: 'Drag to pan · scroll to zoom · double-click to fit · Esc to close',
+				copy: 'Copy',
+				copied: 'Copied',
 				settingsTitle: 'Mermaid diagrams',
 				modeManual: 'On demand',
 				modeVisible: 'When visible',
@@ -499,6 +503,9 @@ window.__ModuleLoader__.load({
 .dsh-mdm-source{margin:0}
 .dsh-mdm-source pre{margin:0;padding:0;border:0;background:transparent;overflow:visible}
 .dsh-mdm-source code{font-size:12px}
+/* The application's own code-block frame is adopted, not deleted: flatten it so
+   the card's chrome is the only frame, while its syntax highlighting survives. */
+.dsh-mdm-source .md-code-block{background:transparent;border:0;box-shadow:none;border-radius:0;padding:0;margin:0}
 `;
 
 		/** Live decorations, keyed by their `<code>` element. */
@@ -633,15 +640,32 @@ window.__ModuleLoader__.load({
 			const expand = document.createElement('button');
 			expand.type = 'button';
 			expand.className = 'dsh-mdm-btn';
+			expand.setAttribute('data-dsh-mermaid-action', 'expand');
 			expand.hidden = true;
 			expand.textContent = t('expand');
 			expand.setAttribute('aria-label', t('expandLabel'));
 			expand.title = t('expandLabel');
 			expand.addEventListener('click', () => openLightbox(entry));
 
+			const copy = document.createElement('button');
+			copy.type = 'button';
+			copy.className = 'dsh-mdm-btn';
+			copy.setAttribute('data-dsh-mermaid-action', 'copy');
+			copy.textContent = t('copy');
+			copy.setAttribute('aria-label', t('copy'));
+			copy.addEventListener('click', () => {
+				// The card replaces the frame's toolbar, so it owes the same action.
+				void copyText(entry.pre.textContent ?? '');
+				copy.textContent = t('copied');
+				window.setTimeout(() => {
+					copy.textContent = t('copy');
+				}, 1200);
+			});
+
 			const button = document.createElement('button');
 			button.type = 'button';
 			button.className = 'dsh-mdm-btn';
+			button.setAttribute('data-dsh-mermaid-action', 'view');
 			button.addEventListener('click', () => {
 				// Already rendered: this is a plain view switch over the cached SVG.
 				if (entry.state === 'ok') {
@@ -657,7 +681,7 @@ window.__ModuleLoader__.load({
 			});
 			const tools = document.createElement('div');
 			tools.className = 'dsh-mdm-tools';
-			tools.append(button, expand);
+			tools.append(button, copy, expand);
 			bar.append(title, tools);
 
 			const body = document.createElement('div');
@@ -688,6 +712,7 @@ window.__ModuleLoader__.load({
 
 			entry.button = button;
 			entry.expand = expand;
+			entry.copy = copy;
 			entry.body = body;
 			entry.source = source;
 			entry.content = content;
@@ -702,9 +727,11 @@ window.__ModuleLoader__.load({
 		function adopt(pre) {
 			if (pre.parentElement == null) return;
 			/**
-			 * A Markdown preview wraps a fence in a `.md-code-block` frame (a label
-			 * and a toolbar). The card replaces that frame instead of nesting inside
-			 * it, otherwise the diagram renders twice-framed.
+			 * Both the chat renderer and the document preview wrap a fence in the
+			 * application's `.md-code-block` frame (a language label plus a copy
+			 * toolbar). The card takes the frame's place and adopts the frame itself,
+			 * so the source keeps the application's highlighting and copy affordances
+			 * instead of the card nesting inside a second frame.
 			 */
 			const frame = pre.closest('.md-code-block');
 			const holder = frame !== null && frame.parentElement !== null ? frame : pre;
@@ -719,11 +746,23 @@ window.__ModuleLoader__.load({
 				revealed: false,
 				root: null,
 				resize: null,
+				frame: null,
+				hiddenChrome: [],
 			};
 			entry.root = buildCard(entry);
 			holder.parentElement.insertBefore(entry.root, holder);
-			entry.source.append(pre);
-			if (holder !== pre) holder.remove();
+			entry.source.append(holder === pre ? pre : frame);
+			if (holder !== pre) {
+				entry.frame = frame;
+				// The frame's own label and toolbar would stack on the card's header.
+				// Hide every direct child except the code body; the card owns the chrome
+				// and offers the same copy action.
+				for (const child of [...frame.children]) {
+					if (child.hasAttribute('data-code-block-content')) continue;
+					child.hidden = true;
+					entry.hiddenChrome.push(child);
+				}
+			}
 			entries.set(pre, entry);
 			paint(entry);
 			if (typeof ResizeObserver === 'function') {
@@ -840,6 +879,38 @@ window.__ModuleLoader__.load({
 					hub.emit({ rendered: countState('ok'), failed: countState('error'), error: message.slice(0, 200) });
 				},
 			);
+		}
+
+		/**
+		 * Copy text, preferring the async clipboard and falling back to a selection.
+		 *
+		 * The desktop shell may not grant the clipboard API to a custom scheme, so the
+		 * fallback is not optional here.
+		 * @param text - the source to copy.
+		 * @returns a promise that settles when the attempt finished.
+		 */
+		async function copyText(text) {
+			try {
+				if (navigator.clipboard?.writeText !== undefined) {
+					await navigator.clipboard.writeText(text);
+					return;
+				}
+			} catch {
+				/* fall through to the selection path */
+			}
+			const area = document.createElement('textarea');
+			area.value = text;
+			area.setAttribute('readonly', '');
+			area.style.position = 'fixed';
+			area.style.opacity = '0';
+			document.body.append(area);
+			area.select();
+			try {
+				document.execCommand('copy');
+			} catch {
+				/* nothing else to try; the source stays selectable */
+			}
+			area.remove();
 		}
 
 		/** Parse Mermaid's SVG output and hand back one live node with no navigable links. */
@@ -1194,9 +1265,14 @@ window.__ModuleLoader__.load({
 			entry.resize?.disconnect();
 			entry.resize = null;
 			entry.pre.hidden = false;
+			for (const child of entry.hiddenChrome ?? []) child.hidden = false;
+			entry.hiddenChrome = [];
 			const root = entry.root;
-			if (root?.parentNode != null) root.parentNode.insertBefore(entry.pre, root);
-			else if (!entry.pre.isConnected) entry.source.append(entry.pre);
+			// Put the frame back whole when we adopted one; otherwise the bare block.
+			const restore = entry.frame ?? entry.pre;
+			if (root?.parentNode != null) root.parentNode.insertBefore(restore, root);
+			else if (!restore.isConnected) entry.source.append(restore);
+			entry.frame = null;
 			root?.remove();
 		}
 
