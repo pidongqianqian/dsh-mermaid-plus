@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>bench</title>
+<style>body{font:13px ui-monospace,monospace;margin:16px;background:#fff;color:#111}</style>
+</head>
+<body>
+<pre id="out">running</pre>
+<script type="module">
+const params = new URLSearchParams(location.search);
+const rt = params.get('rt');
+const layout = params.get('layout');
+const out = document.getElementById('out');
+
+/** Render every corpus item once to warm the runtime, then time three runs each. */
+async function run() {
+	const importStarted = performance.now();
+	const { default: mermaid } = await import(`./.runtimes/${rt}`);
+	const importMs = performance.now() - importStarted;
+	const initStarted = performance.now();
+	mermaid.initialize({
+		startOnLoad: false,
+		securityLevel: 'strict',
+		htmlLabels: false,
+		theme: 'default',
+		layout,
+		logLevel: 'fatal',
+		suppressErrorRendering: true,
+	});
+	const initMs = performance.now() - initStarted;
+	const corpus = await (await fetch('./corpus.json')).json();
+	const results = [];
+	for (const item of corpus) {
+		let error = null;
+		try {
+			await mermaid.render(`warm-${item.id}`, item.source);
+		} catch (caught) {
+			error = String(caught?.message ?? caught).slice(0, 200);
+		}
+		const times = [];
+		let width = 0;
+		let height = 0;
+		if (error === null) {
+			for (let index = 0; index < 3; index += 1) {
+				const started = performance.now();
+				try {
+					const { svg } = await mermaid.render(`b-${item.id}-${index}`, item.source);
+					times.push(performance.now() - started);
+					// Only the outer <svg>: nested markers and icons carry their own
+					// viewBox (a marker's 10x10 was the first match before this).
+					const outer = svg.slice(0, svg.indexOf('>') + 1);
+					const box = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(outer);
+					if (box !== null) {
+						width = Math.round(Number(box[3]));
+						height = Math.round(Number(box[4]));
+					}
+				} catch (caught) {
+					error = String(caught?.message ?? caught).slice(0, 200);
+					break;
+				}
+			}
+		}
+		results.push({ id: item.id, times, width, height, error });
+	}
+	return { rt, layout, importMs, initMs, results };
+}
+
+try {
+	window.__BENCH__ = await run();
+} catch (caught) {
+	window.__BENCH__ = { rt, layout, fatal: String(caught?.message ?? caught).slice(0, 300) };
+}
+out.textContent = JSON.stringify(window.__BENCH__, null, 1);
+document.title = 'bench done';
+</script>
+</body>
+</html>
