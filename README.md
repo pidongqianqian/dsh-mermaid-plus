@@ -112,6 +112,11 @@ contributions of any size are welcome.
 - [`CHANGELOG.md`](CHANGELOG.md) — what changed and why.
 - [`SECURITY.md`](SECURITY.md) — private vulnerability reporting.
 
+Credits: **Dunianggg** (pull request #1 — coexistence, the code-block frame,
+`suppressErrorRendering`) and **Songyanglin-curious** (the Mermaid 12 / ELK fork —
+the ELK direction, render-validity guards, cache versioning, the Windows build fix)
+are recorded in [`CREDITS.md`](https://github.com/pidongqianqian/dsh-mermaid-plus/blob/main/CREDITS.md).
+
 Wanted, with a working prototype in a community fork:
 
 - **Compact layout (ELK)** — Mermaid 12's ELK layout makes wide diagrams like the architecture sample dramatically more readable; it costs runtime size and a license notice, so it needs a design (a setting, or automatic by diagram size) before it lands.

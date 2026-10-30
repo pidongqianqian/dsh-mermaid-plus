@@ -29,6 +29,14 @@ Notable changes, newest first. The format follows
 - The SVG cache key includes the layout engine and a renderer signature, so
   switching layouts or upgrading the runtime never serves a stale diagram.
 
+### Credits
+
+- The ELK direction, its before/after evidence, the license handling and the
+  in-card toolbar prototype came from
+  [Songyanglin-curious's fork](https://github.com/Songyanglin-curious/dsh-mermaid-plus);
+  the default-always mode and the Redux palettes were not adopted, for the reasons
+  in issue #2. See [`CREDITS.md`](CREDITS.md).
+
 ### Licensing
 
 - The bundle now inlines ELK (EPL-2.0, unmodified). `vendor/elkjs.LICENSE` and
@@ -58,6 +66,12 @@ Notable changes, newest first. The format follows
 - The SVG cache key now includes the renderer configuration, so changing layout,
   themes or the Mermaid version cannot serve a diagram produced by the previous
   configuration within one session.
+
+### Credits
+
+- The render-validity guards, the cache-versioning idea and the Windows build fix
+  came from [Songyanglin-curious's Mermaid 12 / ELK fork](https://github.com/Songyanglin-curious/dsh-mermaid-plus);
+  see [`CREDITS.md`](CREDITS.md).
 
 ### Changed
 
