@@ -29,7 +29,14 @@ const EXPECTED = [
 /** Paths that must never be published, whatever `files` says. */
 const FORBIDDEN = [/^test\//, /^tools\//, /^docs\//, /^build\.mjs$/, /diagnostics\.json$/, /\.tgz$/, /node_modules\//];
 
-const raw = execFileSync('npm', ['pack', '--dry-run', '--json'], { cwd: root, encoding: 'utf8' });
+// `npm` is a shell script on POSIX but `npm.cmd` on Windows, where spawning the
+// bare name fails with ENOENT. Prefer the interpreter npm itself was started
+// with (`npm run pack:check` sets this), and fall back to a shell otherwise.
+const npmCli = process.env.npm_execpath;
+const [command, args, shell] = npmCli === undefined
+	? ['npm', ['pack', '--dry-run', '--json'], process.platform === 'win32']
+	: [process.execPath, [npmCli, 'pack', '--dry-run', '--json'], false];
+const raw = execFileSync(command, args, { cwd: root, encoding: 'utf8', shell });
 const [report] = JSON.parse(raw);
 const files = report.files.map((file) => file.path).sort();
 

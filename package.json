@@ -63,7 +63,8 @@
     "test": "node test/run.mjs",
     "test:e2e": "node test/serve-e2e.mjs",
     "dev": "node tools/dev-sync.mjs",
-    "doctor": "node tools/doctor.mjs"
+    "doctor": "node tools/doctor.mjs",
+    "pack:check": "node tools/pack-check.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

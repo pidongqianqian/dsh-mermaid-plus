@@ -40,7 +40,7 @@ jobs:
         run: node test/run-e2e-headless.mjs
 
       - name: Publishable tarball shape
-        run: node tools/pack-check.mjs
+        run: npm run pack:check
 
       # The vendored runtime is committed, so regenerating it must reproduce the
       # committed bytes; a difference means the build inputs or the build itself
@@ -84,4 +84,4 @@ jobs:
         run: npm run build
 
       - name: Publishable tarball shape
-        run: node tools/pack-check.mjs
+        run: npm run pack:check
