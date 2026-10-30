@@ -22,6 +22,7 @@ const EXPECTED = [
 	'index.js',
 	'locale/zh.json',
 	'package.json',
+	'CREDITS.md',
 	'THIRD-PARTY-NOTICES.md',
 	'vendor/elkjs.LICENSE',
 	'vendor/mermaid.LICENSE',

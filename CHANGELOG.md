@@ -6,6 +6,17 @@ Notable changes, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-10-31
+
+### Changed
+
+- README: current screenshots (card with Copy, viewer in both themes) and a
+  dagre/ELK comparison of the same diagram with the measured delta; a Settings
+  table for both preference rows; a Benchmarks section.
+- `CREDITS.md` ships with the package and records both external contributions
+  (pull request #1 and the Mermaid 12 / ELK fork), including what was not adopted
+  and why.
+
 ## [0.4.0] — 2026-10-31
 
 ### Added
