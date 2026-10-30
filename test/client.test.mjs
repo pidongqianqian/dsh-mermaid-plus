@@ -89,8 +89,10 @@ const importedModules = [];
 const runtime = {
 	initializeCount: 0,
 	renderCount: 0,
-	async initialize() {
+	lastOptions: null,
+	async initialize(options) {
 		this.initializeCount += 1;
+		this.lastOptions = options;
 	},
 	async render(id, source) {
 		this.renderCount += 1;
@@ -373,6 +375,56 @@ assert.equal(later.pre.closest('.dsh-mdm').getAttribute('data-dsh-mermaid-state'
 console.log('ok   mode manual        a later card waits for a request');
 //#endregion
 
+//#region coexistence with another renderer
+// A second renderer may have taken the block already: it marks the block it
+// claimed, and its error state echoes the source back as a <pre> inside its own
+// card. Neither is a fence of ours, so neither may grow a second card.
+const preview = window.document.createElement('div');
+preview.className = 'nArs4W_editorMd';
+window.document.body.append(preview);
+
+const claimed = window.document.createElement('pre');
+claimed.setAttribute('data-mermaid-processed', 'true');
+claimed.textContent = 'flowchart LR\n  P --> Q';
+preview.append(claimed);
+
+const echo = window.document.createElement('pre');
+echo.className = 'nArs4W_mermaidCode';
+echo.textContent = 'flowchart LR\n  R --> S';
+preview.append(echo);
+
+await settle();
+assert.equal(claimed.closest('.dsh-mdm'), null, 'a block another renderer claimed must stay untouched');
+assert.equal(echo.closest('.dsh-mdm'), null, 'a source echo inside another card must stay untouched');
+console.log('ok   coexistence       blocks claimed by another renderer are left alone');
+//#endregion
+
+//#region preview frame
+// The Markdown preview frames every fence in a `.md-code-block`; the card takes
+// the frame's place instead of being nested inside it.
+const frame = window.document.createElement('div');
+frame.className = 'md-code-block';
+const frameHead = window.document.createElement('div');
+frameHead.textContent = 'Code';
+const framed = window.document.createElement('pre');
+framed.textContent = 'flowchart LR\n  T --> U';
+const frameBody = window.document.createElement('div');
+frameBody.append(framed);
+frame.append(frameHead, frameBody);
+preview.append(frame);
+
+await settle();
+const framedCard = preview.querySelector('.dsh-mdm');
+assert.ok(framedCard !== null, 'a fenced block inside a frame must still be adopted');
+assert.equal(framed.closest('.dsh-mdm') !== null, true, 'the source must move into the card');
+assert.equal(framedCard.parentElement, preview, 'the card must sit where the frame sat');
+assert.equal(preview.querySelector('.md-code-block'), null, 'the frame must be gone, not filled with a card');
+console.log('ok   preview frame      the card replaces the frame instead of nesting');
+
+preview.remove();
+await settle();
+//#endregion
+
 //#region status + settings
 const status = renderView(statusView);
 assert.ok(status !== null, 'the status row must appear once diagrams rendered');
@@ -399,6 +451,11 @@ await settle();
 assert.match(brokenCard.querySelector('.dsh-mdm-msg').textContent, /render|渲染/i);
 assert.match(brokenCard.querySelector('.dsh-mdm-err').textContent, /Parse error/);
 assert.equal(broken.pre.hidden, false, 'a failed diagram must keep the source visible');
+assert.equal(
+	runtime.lastOptions?.suppressErrorRendering,
+	true,
+	'a failed render must not leave Mermaid error chrome behind',
+);
 console.log('ok   failure            a render error falls back to the visible source');
 //#endregion
 

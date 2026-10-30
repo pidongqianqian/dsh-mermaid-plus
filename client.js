@@ -523,6 +523,13 @@ window.__ModuleLoader__.load({
 				// re-render can hand back the moved node, and a second diagram plugin
 				// (ours or another one) must not wrap an existing card again.
 				if (pre.closest('[data-dsh-mermaid]') !== null) continue;
+				// Another renderer may have claimed the block already. Marking the
+				// block is the only signal it can give us: without this, a transcript
+				// that also runs a second Mermaid renderer gets two cards per fence.
+				if (pre.closest('[data-mermaid-processed]') !== null) continue;
+				// A failed render elsewhere often echoes the source back as a <pre>
+				// inside its own card. That echo is not a fence of its own.
+				if (pre.closest('[class*="mermaidCode"], [class*="mermaidError"]') !== null) continue;
 				if (isMermaidBlock(pre)) found.push(pre);
 			}
 			return found;
@@ -693,8 +700,14 @@ window.__ModuleLoader__.load({
 
 		/** Attach one decoration, moving the code block inside our card. */
 		function adopt(pre) {
-			const parent = pre.parentElement;
-			if (parent == null) return;
+			if (pre.parentElement == null) return;
+			/**
+			 * A Markdown preview wraps a fence in a `.md-code-block` frame (a label
+			 * and a toolbar). The card replaces that frame instead of nesting inside
+			 * it, otherwise the diagram renders twice-framed.
+			 */
+			const frame = pre.closest('.md-code-block');
+			const holder = frame !== null && frame.parentElement !== null ? frame : pre;
 			const entry = {
 				pre,
 				state: 'idle',
@@ -708,8 +721,9 @@ window.__ModuleLoader__.load({
 				resize: null,
 			};
 			entry.root = buildCard(entry);
-			parent.insertBefore(entry.root, pre);
+			holder.parentElement.insertBefore(entry.root, holder);
 			entry.source.append(pre);
+			if (holder !== pre) holder.remove();
 			entries.set(pre, entry);
 			paint(entry);
 			if (typeof ResizeObserver === 'function') {
@@ -775,6 +789,11 @@ window.__ModuleLoader__.load({
 					startOnLoad: false,
 					securityLevel: 'strict',
 					htmlLabels: false,
+					// A parse error makes Mermaid inject its own "Syntax error in text"
+					// graphic into a container it appends to <body>; when render() then
+					// throws, nothing removes that container and the graphic stays on
+					// screen. Our own card already shows the error and the source.
+					suppressErrorRendering: true,
 					flowchart: { htmlLabels: false },
 					theme: palette.dark ? 'dark' : 'default',
 					themeVariables: palette.palette,
@@ -1332,6 +1351,10 @@ window.__ModuleLoader__.load({
 						lineHeight: '16px',
 						padding: '0 2px',
 						color: 'var(--dsw-alias-label-tertiary, #9aa1ae)',
+						// The composer dock is a narrow flex row; without this the
+						// counter wraps one character per line.
+						whiteSpace: 'nowrap',
+						flex: 'none',
 					},
 				},
 				`Mermaid · ${parts.join(' · ')}`,

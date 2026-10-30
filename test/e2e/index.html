@@ -226,6 +226,29 @@ record('streamed block renders once settled', settled, `${streamNodes} svg node(
 record('browser half reports lifecycle events', (window.__dshMermaidReports ?? []).length > 0,
   `${(window.__dshMermaidReports ?? []).length} report(s), first=${window.__dshMermaidReports?.[0] ?? '-'}`);
 
+// 8c. Coexistence: a block another renderer already claimed, and a fence framed by
+// the Markdown preview. Neither may grow a second card; the framed one replaces
+// its frame instead of nesting inside it.
+const preview = document.createElement('div');
+preview.className = 'md-editor';
+preview.innerHTML = [
+  '<pre data-mermaid-processed="true"><code>flowchart LR\n  claimed --> block</code></pre>',
+  '<div class="md-code-block">',
+  '  <div class="md-code-block-head">Code</div>',
+  '  <pre><code class="language-mermaid">flowchart LR\n  framed --> block</code></pre>',
+  '</div>',
+].join('');
+document.body.append(preview);
+await new Promise((resolve) => setTimeout(resolve, 400));
+record('claimed block left alone', preview.querySelector('[data-mermaid-processed]')?.closest('.dsh-mdm') === null);
+const framedAdopted = await waitFor(() => preview.querySelector('.dsh-mdm') !== null, 10000);
+record('framed fence adopted', framedAdopted);
+record('preview frame replaced by the card',
+  preview.querySelector('.md-code-block') === null
+  && preview.querySelector('.dsh-mdm')?.parentElement === preview,
+  `frame=${preview.querySelector('.md-code-block') === null ? 'gone' : 'still there'}`);
+preview.remove();
+
 // 9. The viewer: a rendered diagram opens enlarged, zooms, and closes.
 const expandButton = [...firstCard.querySelectorAll('.dsh-mdm-btn')].find((node) => node.textContent === 'Expand');
 record('expand control present', expandButton !== undefined && !expandButton.hidden);
