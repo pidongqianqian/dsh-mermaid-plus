@@ -13,7 +13,7 @@
  * contains a `/`, so the Host's chunk route never matches it.
  */
 import { build } from 'esbuild';
-import { copyFileSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -48,7 +48,16 @@ if (/^\s*(?:import|export)\s/m.test(body)) {
 	throw new Error('build: the vendored runtime still has bare import/export statements');
 }
 
-// 3. License notice travels with the vendored bytes.
+// 3. License notices travel with the vendored bytes.
+//
+//    Mermaid itself is MIT. Its layout engine, elkjs, is EPL-2.0 and gets inlined
+//    by this bundle, so the EPL text ships beside it and the notice in
+//    THIRD-PARTY-NOTICES.md says which version and where its source lives.
 copyFileSync(join(mermaidDir, 'LICENSE'), join(vendor, 'mermaid.LICENSE'));
+const elkLicense = join(root, 'node_modules', 'elkjs', 'LICENSE.md');
+if (!existsSync(elkLicense)) {
+	throw new Error('build: elkjs/LICENSE.md is missing — Mermaid no longer depends on elkjs?');
+}
+copyFileSync(elkLicense, join(vendor, 'elkjs.LICENSE'));
 
 console.log(`build: bundled Mermaid ${version} — runtime ${body.length} B -> vendor/`);

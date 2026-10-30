@@ -22,6 +22,8 @@ const EXPECTED = [
 	'index.js',
 	'locale/zh.json',
 	'package.json',
+	'THIRD-PARTY-NOTICES.md',
+	'vendor/elkjs.LICENSE',
 	'vendor/mermaid.LICENSE',
 	'vendor/mermaid.esm.min.mjs',
 ];

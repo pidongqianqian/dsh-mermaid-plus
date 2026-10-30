@@ -106,6 +106,9 @@ const runtime = {
 		this.lastSource = source;
 		if (this.gate !== null) await this.gate;
 		if (source.includes('FAILME')) throw new Error('Parse error on line 2');
+		if (source.includes('NEEDSDAGRE') && this.lastOptions?.layout === 'elk') {
+			throw new Error('elk cannot lay this out');
+		}
 		return { svg: `<svg id="${id}" xmlns="http://www.w3.org/2000/svg"><text>${source.length}</text></svg>` };
 	},
 };
@@ -224,7 +227,8 @@ assert.deepEqual(
 
 const hostView = injections.registered.find((entry) => entry.name === 'shell.overlay');
 const statusView = injections.registered.find((entry) => entry.name === 'conversation.composer.dock');
-const settingView = injections.registered.find((entry) => entry.name === 'settings.general.item');
+const settingView = injections.registered.find((entry) => entry.id === 'mermaid-diagrams');
+const layoutView = injections.registered.find((entry) => entry.id === 'mermaid-layout');
 
 /** Pick one of the three render modes through the settings row's own control. */
 function setMode(label) {
@@ -245,8 +249,13 @@ assert.deepEqual(
 );
 assert.deepEqual(
 	injections.registered.map((entry) => entry.name),
-	['shell.overlay', 'conversation.composer.dock', 'settings.general.item'],
-	'the three views must register into their slots',
+	['shell.overlay', 'conversation.composer.dock', 'settings.general.item', 'settings.general.item'],
+	'every view must register into its slot (two rows share the General settings slot)',
+);
+assert.deepEqual(
+	injections.registered.map((entry) => entry.id),
+	['mermaid-host', 'mermaid-status', 'mermaid-diagrams', 'mermaid-layout'],
+	'each registration keeps its own entry id',
 );
 console.log('ok   registration       three views registered into their slots');
 //#endregion
@@ -306,6 +315,7 @@ assert.equal(
 	'the runtime must load on first use',
 );
 assert.equal(runtime.renderCount, 1, 'the click must render exactly one diagram');
+assert.equal(runtime.lastOptions.layout, 'elk', 'ELK is the default layout');
 assert.ok(card.querySelector('.dsh-mdm-svg svg') !== null, 'the diagram must be rendered into the card');
 assert.equal(flow.pre.hidden, true, 'the source must hide once the diagram shows');
 assert.equal(card.getAttribute('data-dsh-mermaid-state'), 'ok');
@@ -520,7 +530,69 @@ assert.equal(
 	1,
 	'exactly one mode must be selected',
 );
-console.log('ok   views              status row and three-mode chooser render');
+
+// The layout row is a second entry in the same slot, with its own choice.
+const layoutRow = renderView(layoutView);
+assert.ok(layoutRow !== null, 'the layout row must render');
+const layoutGroup = layoutRow.children.find((child) => child?.props?.role === 'radiogroup');
+assert.equal(layoutGroup.children.length, 2, 'the layout row must offer two engines');
+assert.equal(
+	String(layoutGroup.children.find((child) => child.props['aria-checked'] === true)?.children?.[0] ?? ''),
+	'Compact',
+	'ELK must be the selected layout by default',
+);
+console.log('ok   views              status row, three-mode chooser and layout chooser render');
+//#endregion
+
+//#region layout switching
+// Switching engines persists the choice and re-draws what is already on screen.
+const layoutGroupNow = () => renderView(layoutView).children.find((child) => child?.props?.role === 'radiogroup');
+const dagrePill = layoutGroupNow().children.find(
+	(child) => String(child?.children?.[0] ?? '') === 'Standard',
+);
+dagrePill.props.onClick();
+await settle();
+assert.equal(window.localStorage.getItem('dsh-mermaid-plus.layout'), 'dagre', 'the choice must persist');
+assert.equal(runtime.lastOptions.layout, 'dagre', 'an already rendered card must re-render with the new engine');
+assert.match(card.querySelector('.dsh-mdm-svg svg')?.outerHTML ?? '', /<svg/, 'the re-render must land in the card');
+
+// Back to the default. The card rendered a moment ago is served from the cache by
+// engine+source, so a fresh block is what proves the choice reaches the runtime.
+layoutGroupNow()
+	.children.find((child) => String(child?.children?.[0] ?? '') === 'Compact')
+	.props.onClick();
+await settle();
+assert.equal(window.localStorage.getItem('dsh-mermaid-plus.layout'), 'elk');
+const afterSwitch = window.document.createElement('pre');
+afterSwitch.textContent = 'flowchart LR\n  Z1 --> Z2';
+window.document.getElementById('transcript').append(afterSwitch);
+await settle();
+afterSwitch.closest('.dsh-mdm').querySelector('[data-dsh-mermaid-action="view"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await settle();
+assert.equal(runtime.lastOptions.layout, 'elk', 'a new diagram must use the restored layout');
+afterSwitch.closest('.dsh-mdm').remove();
+afterSwitch.remove();
+await settle();
+console.log('ok   layout settings    switching engines persists and reaches the runtime');
+//#endregion
+
+//#region layout fallback
+// ELK handles nearly everything; a graph it cannot lay out must still render.
+const needsDagre = window.document.createElement('pre');
+needsDagre.textContent = 'flowchart LR\n  N1[NEEDSDAGRE] --> N2';
+window.document.getElementById('transcript').append(needsDagre);
+await settle();
+const fallbackCard = needsDagre.closest('.dsh-mdm');
+assert.ok(fallbackCard !== null, 'the block must be adopted');
+const fallbackRendersBefore = runtime.renderCount;
+fallbackCard.querySelector('[data-dsh-mermaid-action="view"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await settle();
+assert.equal(runtime.renderCount, fallbackRendersBefore + 2, 'a failed ELK render must retry once with dagre');
+assert.equal(fallbackCard.getAttribute('data-dsh-mermaid-state'), 'ok', 'the fallback diagram must show');
+console.log('ok   layout fallback    a failed ELK render retries once with dagre');
+fallbackCard.remove();
+needsDagre.remove();
+await settle();
 //#endregion
 
 //#region failure

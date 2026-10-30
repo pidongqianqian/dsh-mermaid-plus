@@ -27,6 +27,8 @@ open http://127.0.0.1:8732/  # 35 assertions run in the page; results in window.
 
 ```sh
 node test/run.mjs            # host route, real cordis mount, jsdom browser-half behaviour
+node test/bench/build-runtimes.mjs   # only when re-checking a Mermaid upgrade
+node test/bench/run.mjs             # layout/upgrade benchmark (test/bench/results.md)
 ```
 
 ## When something breaks in the app

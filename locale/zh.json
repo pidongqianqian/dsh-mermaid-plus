@@ -1,4 +1,4 @@
 {
   "title": "Mermaid Diagrams",
-  "description": "渲染对话与 Markdown 预览中的 mermaid 代码块，支持「图形 / 代码」切换。"
+  "description": "渲染对话与 Markdown 预览中的 mermaid 代码块，默认 ELK 紧凑布局，支持「图形 / 代码」切换与全屏查看。"
 }

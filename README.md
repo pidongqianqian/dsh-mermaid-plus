@@ -27,7 +27,11 @@ Fullscreen viewer, light and dark. The sheet takes the palette the diagram was r
 
 A fenced ` ```mermaid ` block in the conversation (or in a Markdown file preview) becomes a card:
 
-- **On demand (default)** — the source stays visible and a `Diagram` button waits in the card header. The 3.5 MB Mermaid runtime is **not downloaded** and no layout work happens until you press it.
+- **Compact layout by default** — diagrams are layered with ELK, Mermaid's compact
+  engine: on the benchmark corpus it cuts the width of wide diagrams by 31–79% at a
+  cost of a few milliseconds per diagram (`test/bench/results.md`). *Settings →
+  General → Diagram layout* switches back to the standard dagre layout.
+- **On demand (default)** — the source stays visible and a `Diagram` button waits in the card header. The 5.4 MB Mermaid runtime is **not downloaded** and no layout work happens until you press it.
 - **When visible** — a diagram renders the first time its card scrolls into view.
 - **Always** — renders as soon as the block appears (the classic behaviour).
 
@@ -52,7 +56,7 @@ dsh plugin --profile <profile> add dsh-mermaid-plus
 
 Or install it from a catalog in **Settings → Plugins → Marketplace** (see the [DSH 1024Store](https://github.com/imsai-sh/awesome-deepseek-harness-plugins) listing). Restart the app or reload the page afterwards.
 
-The Mermaid runtime is **bundled** with the package (`vendor/mermaid.esm.min.mjs`, Mermaid 11.17.0) and served from the plugin's own Host route, so rendering works offline and no CDN is contacted. The fullscreen viewer and card never send diagram source anywhere.
+The Mermaid runtime is **bundled** with the package (`vendor/mermaid.esm.min.mjs`, Mermaid 12.2.0) and served from the plugin's own Host route, so rendering works offline and no CDN is contacted. The fullscreen viewer and card never send diagram source anywhere.
 
 ## Settings
 
@@ -85,7 +89,7 @@ It records lifecycle events only — `start`, `apply-ok`, `apply-throw`, `adopte
 The plugin has no build step for its own code: `index.js` and `client.js` run as they are. Only `vendor/mermaid.esm.min.mjs` is generated, and only when the bundled Mermaid version changes.
 
 ```sh
-npm install                 # mermaid 11.17.0, esbuild, jsdom
+npm install                 # mermaid 12.2.0, esbuild, jsdom
 node build.mjs              # rebuild vendor/mermaid.esm.min.mjs
 node test/run.mjs           # host route, real cordis mount, jsdom browser-half behaviour
 node test/serve-e2e.mjs     # then open http://127.0.0.1:8732/ for 35 real-browser cases
@@ -118,7 +122,8 @@ See [issue #2](https://github.com/pidongqianqian/dsh-mermaid-plus/issues/2) for 
 
 ## License
 
-MIT. Bundled Mermaid is MIT; see `vendor/mermaid.LICENSE`.
+MIT. The bundle also carries Mermaid (MIT) and its layout engine ELK (EPL-2.0);
+see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) and `vendor/*.LICENSE`.
 
 ---
 
@@ -126,7 +131,7 @@ MIT. Bundled Mermaid is MIT; see `vendor/mermaid.LICENSE`.
 
 把对话（以及 Markdown 预览）里的 ` ```mermaid ` 代码块渲染成图表卡片。
 
-**默认按需渲染**：代码块保持源码可见，卡片右上角有一个「图形」按钮；在你点它之前，Mermaid 那个约 3.5 MB 的运行时不会被下载，也不做任何布局计算。另外两种模式是「滚动可见」（卡片进入视口才渲染）和「立即」（出现即渲染）。
+**默认按需渲染**：代码块保持源码可见，卡片右上角有一个「图形」按钮；在你点它之前，Mermaid 那个约 5.4 MB 的运行时不会被下载，也不做任何布局计算。另外两种模式是「滚动可见」（卡片进入视口才渲染）和「立即」（出现即渲染）。
 
 渲染后的图表可以**全屏放大**：滚轮缩放、拖动平移、双击适应窗口、`Esc` 关闭；全屏只克隆已有 SVG，不会重新渲染。
 
@@ -138,7 +143,7 @@ MIT. Bundled Mermaid is MIT; see `vendor/mermaid.LICENSE`.
 - 解析失败时保留源码并给一行错误提示。
 - 卸载时把每个代码块放回原位，不破坏对话内容。
 
-模式开关在 **设置 → 通用 → Mermaid 图表**。Mermaid 运行时随包内置（11.17.0），由插件自己的 Host 路由提供，**不访问 CDN、离线可用**，图表源码不会发往任何地方。
+模式开关在 **设置 → 通用 → Mermaid 图表**。Mermaid 运行时随包内置（12.2.0），由插件自己的 Host 路由提供，**不访问 CDN、离线可用**，图表源码不会发往任何地方。
 
 兼容 DSH `0.2.0-rc.2`。DSH 处于开发者预览阶段，客户端插件契约可能变化；本插件装饰渲染后的 `<pre><code>`，是最容易受影响的一层——若某次升级后卡片不再出现，代码块本身仍然完好。
 

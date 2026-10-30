@@ -145,7 +145,11 @@ const ctx = {
   },
 };
 clientModule.apply(ctx);
-record('three views registered', registrations.length === 3, registrations.map((entry) => entry.name).join(', '));
+record(
+  'every view registered',
+  registrations.length === 4 && new Set(registrations.map((entry) => entry.name)).size === 3,
+  registrations.map((entry) => entry.name).join(', '),
+);
 
 const host = registrations.find((entry) => entry.name === 'shell.overlay');
 if (new URLSearchParams(location.search).has('bare')) {
@@ -367,6 +371,17 @@ if (new URLSearchParams(location.search).has('viewer')) {
 }
 document.title = `E2E ${results.filter((r) => r.ok).length}/${results.length}`;
 window.__E2E__ = results;
+// A failing run must be diagnosable from a headless dump, not only from the
+// console: the runner reads these lines out of the DOM.
+if (results.some((result) => !result.ok)) {
+  const failures = document.createElement('pre');
+  failures.id = 'e2e-failures';
+  failures.textContent = results
+    .filter((result) => !result.ok)
+    .map((result) => `FAIL ${result.name}${result.detail ? ' — ' + result.detail : ''}`)
+    .join('\n');
+  document.body.append(failures);
+}
 </script>
 </body>
 </html>

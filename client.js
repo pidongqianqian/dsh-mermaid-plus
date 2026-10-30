@@ -10,13 +10,23 @@ window.__ModuleLoader__.load({
 		 */
 		const RUNTIME_PATH = `/x-${PKG.replace(/^@/, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
 		/** Bundled Mermaid release; part of the URL so a page reload refetches a new build. */
-		const RUNTIME_VERSION = '11.17.0';
+		const RUNTIME_VERSION = '12.2.0';
+		/**
+		 * Layout engines offered by the runtime, best-reading first. ELK is the
+		 * default: it keeps wide diagrams narrow, at a cost of a few milliseconds per
+		 * diagram (test/bench/results.md).
+		 */
+		const LAYOUTS = ['elk', 'dagre'];
+		/** Layout used until the reader chooses another. */
+		const DEFAULT_LAYOUT = 'elk';
+		/** Preference key for the layout engine. */
+		const LAYOUT_KEY = `${PKG}.layout`;
 		/**
 		 * Identity of the renderer configuration, part of every cache key. A change to
 		 * the layout engine, the theme variables or the Mermaid version must never be
 		 * served a diagram produced by the previous configuration within one session.
 		 */
-		const RENDER_SIGNATURE = `${RUNTIME_VERSION}|dagre|tokens|v1`;
+		const RENDER_SIGNATURE = `${RUNTIME_VERSION}|tokens|v2`;
 
 		/** Report one browser-half event to the Host's sink; a failure here is never fatal. */
 		function report(event, detail) {
@@ -105,6 +115,11 @@ window.__ModuleLoader__.load({
 				hintAlways: '加载后立即渲染所有图表',
 				statusDiagrams: '图表',
 				statusFailed: '个失败',
+				layoutTitle: '图表布局',
+				layoutElk: '紧凑',
+				layoutDagre: '标准',
+				hintLayoutElk: 'ELK 分层布局：宽图更窄、更易读，渲染略慢',
+				hintLayoutDagre: '标准布局：渲染略快，宽图可能横向铺开',
 			},
 			en: {
 				title: 'Mermaid diagram',
@@ -133,6 +148,11 @@ window.__ModuleLoader__.load({
 				hintAlways: 'Every diagram renders as soon as it appears',
 				statusDiagrams: 'diagrams',
 				statusFailed: 'failed',
+				layoutTitle: 'Diagram layout',
+				layoutElk: 'Compact',
+				layoutDagre: 'Standard',
+				hintLayoutElk: 'ELK layering: narrower, easier to read; slightly slower to render',
+				hintLayoutDagre: 'Standard layout: slightly faster; wide diagrams may spread out',
 			},
 		};
 
@@ -186,12 +206,47 @@ window.__ModuleLoader__.load({
 			// manual leaves anything already rendered alone (it is a sunk cost).
 			for (const entry of entries.values()) pump(entry);
 		}
+
+		/** Read the layout engine; an unknown or unreadable value falls back to ELK. */
+		function readLayout() {
+			try {
+				const stored = window.localStorage.getItem(LAYOUT_KEY);
+				return LAYOUTS.includes(stored) ? stored : DEFAULT_LAYOUT;
+			} catch {
+				return DEFAULT_LAYOUT;
+			}
+		}
+
+		/**
+		 * Persist the layout and re-draw what is already on screen.
+		 *
+		 * Anything already rendered was rendered with the previous engine, so it is
+		 * marked idle and pumped again for readers who are looking at it. Cards that
+		 * were never rendered keep waiting for their own trigger.
+		 * @param next - one of LAYOUTS.
+		 */
+		function writeLayout(next) {
+			if (!LAYOUTS.includes(next) || next === hub.snapshot.layout) return;
+			try {
+				window.localStorage.setItem(LAYOUT_KEY, next);
+			} catch {
+				/* a page without storage keeps the in-memory value only */
+			}
+			hub.emit({ layout: next });
+			report('layout', { layout: next });
+			for (const entry of entries.values()) {
+				if (entry.state !== 'ok') continue;
+				entry.hash = '';
+				entry.state = 'idle';
+				pump(entry, { immediate: true });
+			}
+		}
 		//#endregion
 
 		//#region shared state
 		/** Tiny observable the decorator publishes to and the views subscribe from. */
 		const hub = {
-			snapshot: { mode: readMode(), rendered: 0, failed: 0, error: null },
+			snapshot: { mode: readMode(), layout: readLayout(), rendered: 0, failed: 0, error: null },
 			listeners: new Set(),
 			emit(next) {
 				this.snapshot = { ...this.snapshot, ...next };
@@ -810,7 +865,10 @@ window.__ModuleLoader__.load({
 			paletteSignature = palette.signature;
 			entry.surface = palette.palette.background;
 			entry.surfaceDark = palette.dark;
-			const key = `${RENDER_SIGNATURE}\u0000${paletteSignature}\u0000${source}`;
+			const layout = hub.snapshot.layout;
+			/** Cache identity of one source under one engine, palette and renderer. */
+			const keyFor = (engine) => `${RENDER_SIGNATURE}\u0000${engine}\u0000${paletteSignature}\u0000${source}`;
+			const key = keyFor(layout);
 			if (key === entry.hash && entry.state === 'ok') return;
 			entry.hash = key;
 			// A diagram already produced for this source and palette costs nothing.
@@ -830,7 +888,7 @@ window.__ModuleLoader__.load({
 			const expected = revision;
 			entry.promise = enqueue(async () => {
 				const mermaid = await loadRuntime();
-				mermaid.initialize({
+				const options = {
 					startOnLoad: false,
 					securityLevel: 'strict',
 					htmlLabels: false,
@@ -845,8 +903,21 @@ window.__ModuleLoader__.load({
 					fontFamily: 'inherit',
 					deterministicIds: false,
 					logLevel: 'fatal',
-				});
-				return await mermaid.render(`dsh-mdm-${++uid}`, source);
+				};
+				/** Draw once with one engine; a fresh id keeps retries independent. */
+				const draw = async (engine) => {
+					mermaid.initialize({ ...options, layout: engine });
+					return await mermaid.render(`dsh-mdm-${++uid}`, source);
+				};
+				try {
+					return { ...(await draw(layout)), engine: layout };
+				} catch (error) {
+					if (layout !== 'elk') throw error;
+					// ELK handles nearly everything, but a graph it cannot lay out must
+					// still render; falling back once is better than a red card.
+					report('render-fallback', { message: String(error?.message ?? error).slice(0, 160) });
+					return { ...(await draw('dagre')), engine: 'dagre' };
+				}
 			});
 			entry.promise.then(
 				(result) => {
@@ -854,7 +925,11 @@ window.__ModuleLoader__.load({
 					// The card was released, or a new entry took over the same block, while
 					// this render was queued: the result belongs to neither.
 					if (!entry.pre.isConnected || entries.get(entry.pre) !== entry) return;
-					if (expected !== revision || (entry.pre.textContent ?? '') !== source) {
+					if (
+						expected !== revision ||
+						hub.snapshot.layout !== layout ||
+						(entry.pre.textContent ?? '') !== source
+					) {
 						// The palette or the source moved while this render was queued; the
 						// result is stale, so drop it and ask again instead of showing it.
 						entry.hash = '';
@@ -866,7 +941,11 @@ window.__ModuleLoader__.load({
 					if (typeof result?.svg !== 'string' || result.svg === '') {
 						throw new Error('mermaid produced an empty diagram');
 					}
-					remember(key, result.svg);
+					const applied = keyFor(result.engine ?? layout);
+					// The cache must describe the engine that actually ran: a fallback
+					// diagram is not an ELK diagram.
+					entry.hash = applied;
+					remember(applied, result.svg);
 					entry.surface = palette.palette.background;
 					entry.surfaceDark = palette.dark;
 					entry.canvas.replaceChildren(svgFragment(result.svg));
@@ -1367,7 +1446,12 @@ window.__ModuleLoader__.load({
 			scanTimer = window.setInterval(() => {
 				if (document.visibilityState === 'visible') scan();
 			}, 2000);
-			report('start', { mode: hub.snapshot.mode, candidates: candidates().length, scheme: currentScheme() });
+			report('start', {
+				mode: hub.snapshot.mode,
+				layout: hub.snapshot.layout,
+				candidates: candidates().length,
+				scheme: currentScheme(),
+			});
 			scan();
 		}
 
@@ -1453,6 +1537,22 @@ window.__ModuleLoader__.load({
 			);
 		}
 
+		/** One pill in the layout chooser. */
+		function layoutPill(layout, active) {
+			return h(
+				'button',
+				{
+					key: layout,
+					type: 'button',
+					role: 'radio',
+					'aria-checked': active,
+					className: 'dsh-mdm-pill',
+					onClick: () => writeLayout(layout),
+				},
+				t(layout === 'elk' ? 'layoutElk' : 'layoutDagre'),
+			);
+		}
+
 		/** One pill in the mode chooser. */
 		function modePill(mode, active) {
 			return h(
@@ -1469,10 +1569,8 @@ window.__ModuleLoader__.load({
 			);
 		}
 
-		/** General-settings row: the render-mode chooser. */
-		function MermaidSetting() {
-			const snapshot = React.useSyncExternalStore(subscribeHub, getHubSnapshot);
-			const hint = { manual: 'hintManual', visible: 'hintVisible', always: 'hintAlways' }[snapshot.mode];
+		/** One preference row: a label with a hint on the left, a radiogroup on the right. */
+		function settingRow({ title, hint, label, options }) {
 			return h(
 				'div',
 				{
@@ -1488,19 +1586,43 @@ window.__ModuleLoader__.load({
 				h(
 					'div',
 					{ style: { display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '0', flex: '1 1 220px' } },
-					h('div', { style: { fontSize: '13px', color: 'var(--dsw-alias-label-primary, #111827)' } }, t('settingsTitle')),
+					h('div', { style: { fontSize: '13px', color: 'var(--dsw-alias-label-primary, #111827)' } }, title),
 					h(
 						'div',
 						{ style: { fontSize: '12px', color: 'var(--dsw-alias-label-secondary, #6b7280)' } },
-						t(hint),
+						hint,
 					),
 				),
 				h(
 					'div',
-					{ role: 'radiogroup', 'aria-label': t('settingsTitle'), style: { display: 'flex', gap: '4px', flex: 'none' } },
-					...MODES.map((mode) => modePill(mode, snapshot.mode === mode)),
+					{ role: 'radiogroup', 'aria-label': label, style: { display: 'flex', gap: '4px', flex: 'none' } },
+					...options,
 				),
 			);
+		}
+
+		/** General-settings row: the render-mode chooser. */
+		function MermaidSetting() {
+			const snapshot = React.useSyncExternalStore(subscribeHub, getHubSnapshot);
+			const hint = { manual: 'hintManual', visible: 'hintVisible', always: 'hintAlways' }[snapshot.mode];
+			return settingRow({
+				title: t('settingsTitle'),
+				hint: t(hint),
+				label: t('settingsTitle'),
+				options: MODES.map((mode) => modePill(mode, snapshot.mode === mode)),
+			});
+		}
+
+		/** General-settings row: the layout-engine chooser. */
+		function MermaidLayoutSetting() {
+			const snapshot = React.useSyncExternalStore(subscribeHub, getHubSnapshot);
+			const hint = snapshot.layout === 'elk' ? 'hintLayoutElk' : 'hintLayoutDagre';
+			return settingRow({
+				title: t('layoutTitle'),
+				hint: t(hint),
+				label: t('layoutTitle'),
+				options: LAYOUTS.map((layout) => layoutPill(layout, snapshot.layout === layout)),
+			});
 		}
 		//#endregion
 
@@ -1548,9 +1670,10 @@ window.__ModuleLoader__.load({
 					ctx.slots.inject('conversation.composer.dock', () =>
 						registerInto('conversation.composer.dock', 'mermaid-status', 40, MermaidStatus),
 					);
-					ctx.slots.inject('settings.general.item', () =>
+					ctx.slots.inject('settings.general.item', () => [
 						registerInto('settings.general.item', 'mermaid-diagrams', 40, MermaidSetting),
-					);
+						registerInto('settings.general.item', 'mermaid-layout', 41, MermaidLayoutSetting),
+					]);
 					report('apply-ok');
 				} catch (error) {
 					report('apply-throw', String(error?.stack ?? error));

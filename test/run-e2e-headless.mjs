@@ -42,6 +42,16 @@ function findBrowser() {
 	return undefined;
 }
 
+/** Failure lines the page rendered into its own DOM, without the script source. */
+function failures(dom) {
+	const block = /<pre id="e2e-failures">([\s\S]*?)<\/pre>/.exec(dom)?.[1] ?? '';
+	return block
+		.split('\n')
+		.map((line) => line.trim())
+		.filter((line) => line.startsWith('FAIL '))
+		.slice(0, 12);
+}
+
 const browser = findBrowser();
 if (browser === undefined) {
 	console.error('e2e: no Chrome/Chromium found. Set CHROME_BIN to run this suite.');
@@ -101,15 +111,13 @@ try {
 	const match = /^E2E (\d+)\/(\d+)$/.exec(title.trim());
 	if (match === null) {
 		console.error(`e2e: the page did not report a verdict (title: ${JSON.stringify(title)})`);
-		const failedChecks = [...dom.matchAll(/FAIL ([^<]*)/g)].map((m) => m[1].trim()).slice(0, 10);
-		for (const check of failedChecks) console.error(`  FAIL ${check}`);
+		for (const check of failures(dom)) console.error(`  ${check}`);
 	} else {
 		const [, passed, total] = match.map(Number);
 		failed = passed === total && total >= MIN_CASES ? 0 : 1;
 		console.log(`e2e: ${passed}/${total} assertions passed (minimum ${MIN_CASES})`);
 		if (failed !== 0) {
-			const failedChecks = [...dom.matchAll(/FAIL ([^<]*)/g)].map((m) => m[1].trim()).slice(0, 10);
-			for (const check of failedChecks) console.error(`  FAIL ${check}`);
+			for (const check of failures(dom)) console.error(`  ${check}`);
 		}
 	}
 } finally {

@@ -6,6 +6,34 @@ Notable changes, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-31
+
+### Added
+
+- **ELK layout by default.** Diagrams are layered with Mermaid's compact engine.
+  Measured on the corpus in `test/bench/` it costs 5–20 ms per diagram (and is
+  faster on the 150-node case) while cutting the width of wide diagrams by 31–79%
+  — the difference between reading a diagram and panning it.
+- **Settings → General → Diagram layout**: *Compact* (ELK, default) or *Standard*
+  (dagre). Switching re-draws the diagrams already on screen.
+- A layout the engine cannot handle falls back to dagre once and reports
+  `render-fallback`, instead of showing a failed card.
+- `test/bench/`: a reproducible benchmark (corpus, CDP runner, results) used to
+  choose the default and to re-check it on every runtime upgrade.
+
+### Changed
+
+- Mermaid **12.2.0** (was 11.17.0). The vendored runtime grows from 3.5 MB to
+  5.4 MB; because rendering is on demand, that is paid on the first diagram a
+  reader asks for, not at page load (+22 ms of module load, +1.92 MB).
+- The SVG cache key includes the layout engine and a renderer signature, so
+  switching layouts or upgrading the runtime never serves a stale diagram.
+
+### Licensing
+
+- The bundle now inlines ELK (EPL-2.0, unmodified). `vendor/elkjs.LICENSE` and
+  `THIRD-PARTY-NOTICES.md` ship with the package; the plugin's own code stays MIT.
+
 ## [0.3.2] — 2026-10-31
 
 ### Fixed
