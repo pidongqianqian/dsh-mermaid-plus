@@ -1504,6 +1504,28 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 
+		/**
+		 * Register one view into a slot, reporting whether it landed.
+		 *
+		 * A failed registration is invisible in the UI — the row or overlay simply
+		 * never appears — so it has to be observable from a real session.
+		 * @param name - declared slot key.
+		 * @param id - this plugin's entry id inside that slot.
+		 * @param order - position among the slot's entries.
+		 * @param component - view to render.
+		 * @returns the slot's disposal function.
+		 */
+		function registerInto(name, id, order, component) {
+			try {
+				const dispose = hostCtx.slots.register({ name, id, order }, component);
+				report('slot-ok', { id });
+				return dispose;
+			} catch (error) {
+				report('slot-throw', { id, message: String(error?.message ?? error).slice(0, 200) });
+				throw error;
+			}
+		}
+
 		/** Plugin entry: register the dictionaries and the three views. */
 		return {
 			inject: ['slots', 'locale'],
@@ -1517,13 +1539,17 @@ window.__ModuleLoader__.load({
 					// The entry renders a stylesheet and nothing else, and the layer is
 					// click-through, so it never occupies space or blocks the app.
 					ctx.slots.inject('shell.overlay', () =>
-						ctx.slots.register({ name: 'shell.overlay', id: 'mermaid-host', order: 95 }, MermaidHost),
+						registerInto('shell.overlay', 'mermaid-host', 95, MermaidHost),
 					);
-					ctx.slots.inject('conversation.composer.bar', () =>
-						ctx.slots.register({ name: 'conversation.composer.dock', id: 'mermaid-status', order: 40 }, MermaidStatus),
+					// Wait for the slot being registered into, not for an ancestor: a slot
+					// appears only when its own declaration is committed, and registering
+					// into one that does not exist yet fails silently from a user's side.
+					// (Injecting on `settings.section` was how the settings row went missing.)
+					ctx.slots.inject('conversation.composer.dock', () =>
+						registerInto('conversation.composer.dock', 'mermaid-status', 40, MermaidStatus),
 					);
-					ctx.slots.inject('settings.section', () =>
-						ctx.slots.register({ name: 'settings.general.item', id: 'mermaid-diagrams', order: 40 }, MermaidSetting),
+					ctx.slots.inject('settings.general.item', () =>
+						registerInto('settings.general.item', 'mermaid-diagrams', 40, MermaidSetting),
 					);
 					report('apply-ok');
 				} catch (error) {

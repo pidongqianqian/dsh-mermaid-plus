@@ -212,6 +212,16 @@ async function settle() {
 	await wait(700);
 }
 
+// A registration is only valid once the slot it targets has been declared. Waiting
+// on a different slot registers too early: the target does not exist yet, the call
+// fails, and the row silently never appears (that is how the settings row and the
+// status row were missing in 0.3.1).
+assert.deepEqual(
+	[...new Set(injections.registered.map((entry) => entry.name))].sort(),
+	[...new Set(injections.requested)].sort(),
+	'every registration must wait for the slot it registers into',
+);
+
 const hostView = injections.registered.find((entry) => entry.name === 'shell.overlay');
 const statusView = injections.registered.find((entry) => entry.name === 'conversation.composer.dock');
 const settingView = injections.registered.find((entry) => entry.name === 'settings.general.item');
@@ -230,8 +240,8 @@ function setMode(label) {
 //#region registration
 assert.deepEqual(
 	injections.requested,
-	['shell.overlay', 'conversation.composer.bar', 'settings.section'],
-	'the three view hosts must be injected',
+	['shell.overlay', 'conversation.composer.dock', 'settings.general.item'],
+	'the three view hosts must be injected, each waiting on its own slot',
 );
 assert.deepEqual(
 	injections.registered.map((entry) => entry.name),

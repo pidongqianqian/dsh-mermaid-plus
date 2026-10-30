@@ -6,6 +6,19 @@ Notable changes, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-10-31
+
+### Fixed
+
+- **The settings row and the composer status row never appeared.** Each waited on
+  an ancestor slot (`settings.section`, `conversation.composer.bar`) and then
+  registered into a child slot that did not exist yet, so the registration was
+  attempted too early. Both now wait on the slot they actually register into.
+  A registration that fails now reports `slot-ok` / `slot-throw` with its entry id,
+  so a missing row is visible in the support log instead of silently absent.
+- The test suite asserts that every registration waits on its own slot, which is
+  the invariant that would have caught this.
+
 ## [0.3.1] — 2026-10-30
 
 ### Fixed
