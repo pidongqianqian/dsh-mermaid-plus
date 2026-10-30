@@ -1,0 +1,83 @@
+name: Bug report
+description: Something rendered wrong, did not render, or broke the page.
+title: '[bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. A minimal, reproducible diagram source is the single
+        most useful thing you can include — most rendering bugs are specific to one
+        fence or one surrounding DOM shape.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal diagram source
+      description: The smallest fence that shows the problem. Remove anything private.
+      render: markdown
+    validations:
+      required: true
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin version
+      description: From the plugin list, or `npm ls dsh-mermaid-plus`.
+      placeholder: 0.3.1
+    validations:
+      required: true
+  - type: input
+    id: dsh
+    attributes:
+      label: DSH version
+      placeholder: Desktop 2.0.21-next / dsh 0.2.0-rc.2
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen
+      multiple: true
+      options:
+        - Chat transcript
+        - Right-side document preview
+        - Fullscreen viewer
+        - Settings row
+        - Page broke / console error
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Render mode
+      options:
+        - 'On demand (default)'
+        - 'When visible'
+        - 'Immediately'
+    validations:
+      required: false
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: |
+        Console errors, a screenshot, or the output of `node tools/doctor.mjs`
+        (it prints event names and counts only — no diagram source or file contents).
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I can reproduce this with the latest published version.
+          required: false

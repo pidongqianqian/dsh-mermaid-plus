@@ -94,12 +94,17 @@ const runtime = {
 	initializeCount: 0,
 	renderCount: 0,
 	lastOptions: null,
+	lastSource: null,
+	/** When set, a render waits on this promise so a test can change the source mid-flight. */
+	gate: null,
 	async initialize(options) {
 		this.initializeCount += 1;
 		this.lastOptions = options;
 	},
 	async render(id, source) {
 		this.renderCount += 1;
+		this.lastSource = source;
+		if (this.gate !== null) await this.gate;
 		if (source.includes('FAILME')) throw new Error('Parse error on line 2');
 		return { svg: `<svg id="${id}" xmlns="http://www.w3.org/2000/svg"><text>${source.length}</text></svg>` };
 	},
@@ -457,6 +462,39 @@ assert.equal(framedCard.querySelector('.dsh-mdm-source').hidden, true, 'the diag
 viewToggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 assert.equal(framedCard.querySelector('.dsh-mdm-source').hidden, false, 'the code view shows the adopted frame');
 console.log('ok   code-block frame   the card replaces the frame and keeps its body');
+//#endregion
+
+//#region stale results
+// Streaming edits a fence faster than Mermaid lays it out, so a queued render can
+// finish after the source it was started for has changed. That result must be
+// dropped and the card asked again, never shown as if it were current.
+const stalePre = window.document.createElement('pre');
+stalePre.textContent = 'flowchart LR\n  S --> T';
+window.document.getElementById('transcript').append(stalePre);
+await settle();
+const staleCard = stalePre.closest('.dsh-mdm');
+assert.ok(staleCard !== null, 'the streaming block must be adopted');
+
+let openGate;
+runtime.gate = new Promise((resolve) => {
+	openGate = resolve;
+});
+staleCard.querySelector('[data-dsh-mermaid-action="view"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await wait(30);
+assert.equal(staleCard.getAttribute('data-dsh-mermaid-state'), 'rendering', 'the first render must be in flight');
+
+// The fence grows while the layout is still running, then the old render lands.
+stalePre.textContent = 'flowchart LR\n  S --> T\n  T --> U';
+openGate();
+runtime.gate = null;
+await settle();
+assert.equal(runtime.lastSource, 'flowchart LR\n  S --> T\n  T --> U', 'the stale result must be discarded and the new source rendered');
+assert.equal(staleCard.getAttribute('data-dsh-mermaid-state'), 'ok', 'the card must settle on the current source');
+console.log('ok   stale results      a result for an old source is dropped, not shown');
+
+staleCard.remove();
+stalePre.remove();
+await settle();
 //#endregion
 
 //#region status + settings

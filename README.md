@@ -97,6 +97,27 @@ node tools/dev-sync.mjs     # copy this checkout over an npm-installed copy
 
 ## License
 
+## Contributing
+
+The plugin is intentionally small: two JavaScript files, no runtime dependencies,
+no build step for its own code. Bug reports with a minimal diagram source and
+contributions of any size are welcome.
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — setup, the test loop, where each change goes, PR expectations.
+- [`docs/development.md`](docs/development.md) — the debug loop, what each symptom means, release flow.
+- [`CHANGELOG.md`](CHANGELOG.md) — what changed and why.
+- [`SECURITY.md`](SECURITY.md) — private vulnerability reporting.
+
+Wanted, with a working prototype in a community fork:
+
+- **Compact layout (ELK)** — Mermaid 12's ELK layout makes wide diagrams like the architecture sample dramatically more readable; it costs runtime size and a license notice, so it needs a design (a setting, or automatic by diagram size) before it lands.
+- **Diagram export** — SVG and PNG from the viewer, with the theme background baked in.
+- **More browser fixtures** — one case per diagram type keeps the decoration layer honest across DSH upgrades.
+
+See [issue #2](https://github.com/pidongqianqian/dsh-mermaid-plus/issues/2) for the invitation and the review notes.
+
+## License
+
 MIT. Bundled Mermaid is MIT; see `vendor/mermaid.LICENSE`.
 
 ---

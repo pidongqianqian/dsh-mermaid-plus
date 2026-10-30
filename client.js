@@ -11,6 +11,12 @@ window.__ModuleLoader__.load({
 		const RUNTIME_PATH = `/x-${PKG.replace(/^@/, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
 		/** Bundled Mermaid release; part of the URL so a page reload refetches a new build. */
 		const RUNTIME_VERSION = '11.17.0';
+		/**
+		 * Identity of the renderer configuration, part of every cache key. A change to
+		 * the layout engine, the theme variables or the Mermaid version must never be
+		 * served a diagram produced by the previous configuration within one session.
+		 */
+		const RENDER_SIGNATURE = `${RUNTIME_VERSION}|dagre|tokens|v1`;
 
 		/** Report one browser-half event to the Host's sink; a failure here is never fatal. */
 		function report(event, detail) {
@@ -804,7 +810,7 @@ window.__ModuleLoader__.load({
 			paletteSignature = palette.signature;
 			entry.surface = palette.palette.background;
 			entry.surfaceDark = palette.dark;
-			const key = `${paletteSignature}\u0000${source}`;
+			const key = `${RENDER_SIGNATURE}\u0000${paletteSignature}\u0000${source}`;
 			if (key === entry.hash && entry.state === 'ok') return;
 			entry.hash = key;
 			// A diagram already produced for this source and palette costs nothing.
@@ -845,9 +851,12 @@ window.__ModuleLoader__.load({
 			entry.promise.then(
 				(result) => {
 					entry.promise = null;
-					if (!entry.pre.isConnected) return;
-					if (expected !== revision) {
-						// The palette moved while this render was queued; ask again.
+					// The card was released, or a new entry took over the same block, while
+					// this render was queued: the result belongs to neither.
+					if (!entry.pre.isConnected || entries.get(entry.pre) !== entry) return;
+					if (expected !== revision || (entry.pre.textContent ?? '') !== source) {
+						// The palette or the source moved while this render was queued; the
+						// result is stale, so drop it and ask again instead of showing it.
 						entry.hash = '';
 						entry.state = 'idle';
 						paint(entry);
@@ -869,7 +878,14 @@ window.__ModuleLoader__.load({
 				},
 				(error) => {
 					entry.promise = null;
-					if (expected !== revision) return;
+					if (!entry.pre.isConnected || entries.get(entry.pre) !== entry) return;
+					if (expected !== revision || (entry.pre.textContent ?? '') !== source) {
+						entry.hash = '';
+						entry.state = 'idle';
+						paint(entry);
+						pump(entry);
+						return;
+					}
 					const message = String(error?.message ?? error).slice(0, 400);
 					console.error(`${PKG}: diagram failed to render`, error);
 					entry.state = 'error';

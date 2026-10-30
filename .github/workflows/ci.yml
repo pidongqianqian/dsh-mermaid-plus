@@ -42,6 +42,14 @@ jobs:
       - name: Publishable tarball shape
         run: node tools/pack-check.mjs
 
+      # The vendored runtime is committed, so regenerating it must reproduce the
+      # committed bytes; a difference means the build inputs or the build itself
+      # drifted from what was shipped.
+      - name: Vendored runtime is reproducible
+        run: |
+          npm run build
+          git diff --exit-code -- vendor
+
       # A tag that does not match the manifest would publish the wrong version.
       - name: Version and tag agree
         if: startsWith(github.ref, 'refs/tags/v')
@@ -53,3 +61,27 @@ jobs:
             exit 1
           fi
           echo "tag and manifest agree on $version"
+
+  # Building `vendor/` used to spawn `node_modules/.bin/esbuild`, which holds a
+  # shell script plus a `.cmd` wrapper on Windows. This job exists so that a
+  # Windows contributor's build path is verified rather than assumed; everything
+  # else runs on the Linux job.
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the vendored runtime
+        run: npm run build
+
+      - name: Publishable tarball shape
+        run: node tools/pack-check.mjs

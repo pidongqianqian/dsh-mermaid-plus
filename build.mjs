@@ -12,8 +12,8 @@
  * a chunk as `/plugins/<id>/<file>`, and a scoped package id (`@scope/name`)
  * contains a `/`, so the Host's chunk route never matches it.
  */
-import { execFileSync } from 'node:child_process';
-import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { build } from 'esbuild';
+import { copyFileSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,24 +21,26 @@ const root = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const mermaidDir = join(root, 'node_modules', 'mermaid');
 const version = JSON.parse(readFileSync(join(mermaidDir, 'package.json'), 'utf8')).version;
-const esbuild = join(root, 'node_modules', '.bin', 'esbuild');
 const vendor = join(root, 'vendor');
 
 // 1. One self-contained ESM bundle: static and dynamic imports both inlined, so
 //    the browser needs exactly one request and the runtime needs no import map.
-execFileSync(
-	esbuild,
-	[
-		join(mermaidDir, 'dist', 'mermaid.esm.min.mjs'),
-		'--bundle',
-		'--format=esm',
-		'--minify',
-		'--target=es2022',
-		`--outfile=${join(vendor, 'mermaid.esm.min.mjs')}`,
-		'--log-level=warning',
-	],
-	{ stdio: 'inherit' },
-);
+//
+//    The JS API, not `node_modules/.bin/esbuild`: that directory holds a shell
+//    script plus a `.cmd` wrapper on Windows, and spawning the extensionless name
+//    fails there. The API is the same binary on every platform, so a contributor
+//    on Windows can regenerate `vendor/` exactly as CI does.
+await build({
+	entryPoints: [join(mermaidDir, 'dist', 'mermaid.esm.min.mjs')],
+	bundle: true,
+	format: 'esm',
+	minify: true,
+	target: 'es2022',
+	outfile: join(vendor, 'mermaid.esm.min.mjs'),
+	logLevel: 'warning',
+	// Legal comments keep esbuild's default (`eof`): third-party notices stay in
+	// the bundle, collected at its end, which is also what the committed build has.
+});
 
 const runtime = readFileSync(join(vendor, 'mermaid.esm.min.mjs'), 'utf8');
 const body = runtime.replace(/\/\/#\s*sourceMappingURL=.*$/m, '');

@@ -1,0 +1,54 @@
+name: Feature request
+description: Suggest a capability, a setting, or a rendering improvement.
+title: '[feature] '
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This plugin values its small surface: no runtime dependencies, on-demand
+        rendering by default. A feature that fits the design is welcome; one that
+        adds weight needs a reason.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you unable to do today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: The behaviour, not necessarily the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Including "do nothing", and what that costs you.
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Rendering / layout quality
+        - Performance
+        - Card or viewer UI
+        - Export or copy
+        - Markdown / document preview
+        - Settings
+        - Packaging / install
+        - Documentation or translation
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
