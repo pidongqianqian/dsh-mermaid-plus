@@ -42,6 +42,11 @@ jobs:
       - name: Publishable tarball shape
         run: npm run pack:check
 
+      # The README points at raw.githubusercontent URLs, so a truncated image is
+      # published silently as an empty block on npm and the catalogs.
+      - name: README images are complete
+        run: node tools/check-readme-images.mjs
+
       # The vendored runtime is committed, so regenerating it must reproduce the
       # committed bytes; a difference means the build inputs or the build itself
       # drifted from what was shipped.
