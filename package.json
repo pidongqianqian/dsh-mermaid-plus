@@ -5,6 +5,7 @@
   "license": "MIT",
   "author": "pidongqianqian",
   "type": "module",
+  "main": "index.js",
   "icon": "./icon.svg",
   "keywords": [
     "dsh",
