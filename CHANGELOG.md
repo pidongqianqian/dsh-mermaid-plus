@@ -6,6 +6,14 @@ Notable changes, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-11-11
+
+### Changed
+
+- `package.json` declares `main: index.js` beside `exports`. Node resolves `exports`
+  first, so DSH loads exactly as before; the field is for tools that do not read
+  `exports` (directory crawlers and older install probes).
+
 ## [0.5.0] — 2026-11-11
 
 ### Changed
