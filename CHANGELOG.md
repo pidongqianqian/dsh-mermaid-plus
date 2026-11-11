@@ -6,6 +6,15 @@ Notable changes, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-11-11
+
+### Changed
+
+- README: the introduction now says where the settings live (**Settings → General**,
+  two rows: *Mermaid diagrams* and *Diagram layout*) and shows them, instead of
+  leaving that to the Settings section halfway down the page. The Chinese section
+  follows.
+
 ## [0.4.1] — 2026-10-31
 
 ### Changed

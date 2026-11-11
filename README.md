@@ -7,6 +7,10 @@
 
 Mermaid diagrams for [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) — rendered **on demand** by default, so a transcript full of diagrams costs nothing until you ask for one.
 
+**Configure it in Settings → General.** Two rows belong to this plugin: *Mermaid diagrams* picks when a diagram renders (on demand · when visible · always) and *Diagram layout* picks the engine (compact ELK · standard dagre). Defaults: on demand, compact.
+
+![The plugin's two rows in Settings → General: Mermaid diagrams and Diagram layout](https://raw.githubusercontent.com/pidongqianqian/dsh-mermaid-plus/main/docs/settings.png)
+
 [中文说明](#中文说明)
 
 ---
@@ -69,7 +73,8 @@ Every rendered diagram can be opened **fullscreen** with zoom and pan, which is 
 
 ## Settings
 
-*Settings → General* has two rows owned by this plugin:
+*Settings → General* has two rows owned by this plugin — the same rows shown at the
+top of this page:
 
 | Row | Values | Default |
 |---|---|---|
@@ -169,6 +174,8 @@ see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) and `vendor/*.LICENSE`.
 ## 中文说明
 
 把对话（以及 Markdown 预览）里的 ` ```mermaid ` 代码块渲染成图表卡片。
+
+**配置在 设置 → 通用**。有本插件自己的两行：「Mermaid 图表」决定什么时候渲染（手动 · 滚动可见 · 立即），「图表布局」决定布局引擎（紧凑 ELK · 标准 dagre）。默认是「手动 + 紧凑」。
 
 **默认按需渲染**：代码块保持源码可见，卡片右上角有一个「图形」按钮；在你点它之前，Mermaid 那个约 5.4 MB 的运行时不会被下载，也不做任何布局计算。另外两种模式是「滚动可见」（卡片进入视口才渲染）和「立即」（出现即渲染）。
 
