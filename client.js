@@ -65,13 +65,13 @@ window.__ModuleLoader__.load({
 		/** Render modes, in the order the settings row offers them. */
 		const MODES = ['manual', 'visible', 'always'];
 		/**
-		 * Default: render nothing until the reader asks.
+		 * Default: render a diagram the first time its card scrolls into view.
 		 *
-		 * The eager modes cost a 3.5 MB runtime plus one layout pass per diagram, and
-		 * a transcript can hold dozens. Reading a conversation must not pay that; the
-		 * card shows its source and one button instead.
+		 * This keeps the runtime off the page until a diagram is actually on screen,
+		 * while sparing the reader the extra click. On-demand stays available for
+		 * transcripts where a layout pass per diagram is not worth it.
 		 */
-		const DEFAULT_MODE = 'manual';
+		const DEFAULT_MODE = 'visible';
 		/** Refuse pathological diagrams before they reach Mermaid. */
 		const MAX_SOURCE_CHARS = 50000;
 		/**
@@ -621,8 +621,11 @@ window.__ModuleLoader__.load({
 		function wanted(entry) {
 			const mode = hub.snapshot.mode;
 			if (mode === 'always') return true;
+			// A click is the reader looking at the card and asking for the diagram; it
+			// must not depend on the visibility observer having fired yet.
+			if (entry.asked) return true;
 			if (mode === 'visible') return entry.revealed;
-			return entry.asked;
+			return false;
 		}
 
 		/** Render now if the mode allows it and the source settled; never duplicates work. */

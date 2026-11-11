@@ -6,6 +6,19 @@ Notable changes, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-11
+
+### Changed
+
+- **Default render mode is now "when visible"**, not "on demand". A diagram renders
+  the first time its card scrolls into view, so the runtime still loads only when a
+  diagram is actually on screen, without the extra click. *Settings → General →
+  Mermaid diagrams* keeps the old behaviour as "on demand" and the eager "always"
+  mode; a stored preference is respected.
+- An explicit click on the card's Diagram button now always renders, in every mode.
+  It used to be ignored under "when visible" until the visibility observer fired,
+  which is why the new default exposed it.
+
 ## [0.4.2] — 2026-11-11
 
 ### Changed

@@ -5,9 +5,9 @@
 [![DSH](https://img.shields.io/badge/DSH-0.2.0--rc.2-4b5563)](https://github.com/deepseek-ai/DeepSeek-Harness)
 [![install](https://img.shields.io/badge/dsh%20plugin%20add-dsh--mermaid--plus-5b8def)](#install)
 
-Mermaid diagrams for [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) — rendered **on demand** by default, so a transcript full of diagrams costs nothing until you ask for one.
+Mermaid diagrams for [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) — rendered **when a diagram scrolls into view** by default, with an on-demand mode for when a layout pass per diagram is not worth it.
 
-**Configure it in Settings → General.** Two rows belong to this plugin: *Mermaid diagrams* picks when a diagram renders (on demand · when visible · always) and *Diagram layout* picks the engine (compact ELK · standard dagre). Defaults: on demand, compact.
+**Configure it in Settings → General.** Two rows belong to this plugin: *Mermaid diagrams* picks when a diagram renders (on demand · when visible · always) and *Diagram layout* picks the engine (compact ELK · standard dagre). Defaults: when visible, compact.
 
 ![The plugin's two rows in Settings → General: Mermaid diagrams and Diagram layout](https://raw.githubusercontent.com/pidongqianqian/dsh-mermaid-plus/main/docs/settings.png)
 
@@ -51,8 +51,8 @@ A fenced ` ```mermaid ` block in the conversation (or in a Markdown file preview
   cost of a few milliseconds per diagram; *Settings → General → Diagram layout*
   switches to the standard dagre layout, and switching re-draws the diagrams already
   on screen.
-- **On demand (default)** — the source stays visible and a `Diagram` button waits in the card header. The 5.4 MB Mermaid runtime is **not downloaded** and no layout work happens until you press it.
-- **When visible** — a diagram renders the first time its card scrolls into view.
+- **When visible (default)** — a diagram renders the first time its card scrolls into view. The 5.4 MB Mermaid runtime loads then, not at page load, so a transcript nobody scrolls costs nothing.
+- **On demand** — the source stays visible and a `Diagram` button waits in the card header; nothing is downloaded or laid out until you press it.
 - **Always** — renders as soon as the block appears (the classic behaviour).
 
 Every rendered diagram can be opened **fullscreen** with zoom and pan, which is the point: a wide flowchart squeezed into the message column is unreadable, while the same diagram at natural size is fine.
@@ -78,7 +78,7 @@ top of this page:
 
 | Row | Values | Default |
 |---|---|---|
-| **Mermaid diagrams** | On demand · When visible · Always | On demand |
+| **Mermaid diagrams** | On demand · When visible · Always | When visible |
 | **Diagram layout** | Compact (ELK) · Standard (dagre) | Compact |
 
 ## Benchmarks
@@ -175,9 +175,9 @@ see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) and `vendor/*.LICENSE`.
 
 把对话（以及 Markdown 预览）里的 ` ```mermaid ` 代码块渲染成图表卡片。
 
-**配置在 设置 → 通用**。有本插件自己的两行：「Mermaid 图表」决定什么时候渲染（手动 · 滚动可见 · 立即），「图表布局」决定布局引擎（紧凑 ELK · 标准 dagre）。默认是「手动 + 紧凑」。
+**配置在 设置 → 通用**。有本插件自己的两行：「Mermaid 图表」决定什么时候渲染（手动 · 滚动可见 · 立即），「图表布局」决定布局引擎（紧凑 ELK · 标准 dagre）。默认是「滚动可见 + 紧凑」。
 
-**默认按需渲染**：代码块保持源码可见，卡片右上角有一个「图形」按钮；在你点它之前，Mermaid 那个约 5.4 MB 的运行时不会被下载，也不做任何布局计算。另外两种模式是「滚动可见」（卡片进入视口才渲染）和「立即」（出现即渲染）。
+**默认「滚动可见」**：卡片第一次滚入视口时才加载 Mermaid（约 5.4 MB）并渲染，页面打开时不加载。另外两种模式是「按需」（代码块保持源码可见，点卡片上的「图形」才渲染）和「立即」（出现即渲染）。
 
 **默认使用 ELK 紧凑布局**。同一张架构图，标准布局（dagre）宽 1956 px，ELK 宽 1249 px（−36%）；在基准里宽图普遍收窄 31–79%，代价是每张图多 5–20 ms。设置里可以切回标准布局，切换会立刻重绘已经显示的图——数据见 `test/bench/results.md`。
 
@@ -197,7 +197,7 @@ see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) and `vendor/*.LICENSE`.
 
 | 行 | 选项 | 默认 |
 |---|---|---|
-| **Mermaid 图表** | 按需 · 滚动可见 · 立即 | 按需 |
+| **Mermaid 图表** | 手动 · 滚动可见 · 立即 | 滚动可见 |
 | **图表布局** | 紧凑（ELK） · 标准（dagre） | 紧凑 |
 
 Mermaid 运行时随包内置（12.2.0），由插件自己的 Host 路由提供，**不访问 CDN、离线可用**，图表源码不会发往任何地方。
