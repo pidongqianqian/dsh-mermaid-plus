@@ -64,14 +64,8 @@ window.__ModuleLoader__.load({
 		const LEGACY_MODE_KEY = 'dsh-mermaid.mode';
 		/** Render modes, in the order the settings row offers them. */
 		const MODES = ['manual', 'visible', 'always'];
-		/**
-		 * Default: render a diagram the first time its card scrolls into view.
-		 *
-		 * This keeps the runtime off the page until a diagram is actually on screen,
-		 * while sparing the reader the extra click. On-demand stays available for
-		 * transcripts where a layout pass per diagram is not worth it.
-		 */
-		const DEFAULT_MODE = 'visible';
+		/** Default: render all adopted diagrams after their source settles. */
+		const DEFAULT_MODE = 'always';
 		/** Refuse pathological diagrams before they reach Mermaid. */
 		const MAX_SOURCE_CHARS = 50000;
 		/**

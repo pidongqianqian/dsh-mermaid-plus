@@ -6,6 +6,13 @@ Notable changes, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-11-14
+
+### Changed
+
+- New profiles default to Always: diagrams render automatically after their source settles. Saved mode choices remain unchanged. On demand and When visible remain available in Settings → General.
+
+
 ## [0.6.0] — 2026-11-14
 
 ### Added

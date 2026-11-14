@@ -1,7 +1,7 @@
 {
   "name": "dsh-mermaid-plus",
-  "version": "0.6.0",
-  "description": "Mermaid diagrams for DeepSeek Harness: on-demand rendering, theme-aware, with a fullscreen zoom viewer.",
+  "version": "0.6.1",
+  "description": "Mermaid diagrams for DeepSeek Harness: automatic rendering, compact ELK layout, zoom, pan and SVG/PNG export.",
   "license": "MIT",
   "author": "pidongqianqian",
   "type": "module",
@@ -27,7 +27,7 @@
   },
   "meta": {
     "title": "Mermaid Diagrams Plus",
-    "description": "Renders mermaid fenced code blocks as diagrams. Nothing renders until you ask (on demand by default), with scroll-into-view and always modes, theme-aware colours, and a fullscreen viewer with zoom and pan."
+    "description": "Renders Mermaid diagrams automatically after their source settles, with optional on-demand and when-visible modes, compact ELK layout, theme-aware colours, zoom, pan and SVG/PNG export."
   },
   "exports": {
     ".": "./index.js",

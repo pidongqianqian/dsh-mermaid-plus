@@ -269,7 +269,12 @@ assert.equal(hostElement.props['data-dsh-mermaid-style'], PKG);
 console.log('ok   mount              host view renders the package stylesheet');
 //#endregion
 
-//#region adoption (default = on demand)
+// The fresh profile defaults to Always; the interaction tests below explicitly
+// select On demand so their click and visibility assertions remain independent.
+const defaultGroup = renderView(settingView).children.find((child) => child?.props?.role === 'radiogroup');
+assert.equal(String(defaultGroup.children.find((child) => child.props['aria-checked'])?.children?.[0]), 'Always');
+setMode('On demand');
+//#region adoption (explicit on demand)
 const flow = addBlock('mermaid', 'flowchart LR\n  A --> B');
 const plain = addBlock('js', 'const a = 1;');
 const bare = addBlock('', 'sequenceDiagram\n  Alice->>Bob: Hi', { labelled: false });
