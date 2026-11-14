@@ -106,6 +106,10 @@ window.__ModuleLoader__.load({
 				viewerHint: '拖动平移 · 滚轮缩放 · 双击适应窗口 · Esc 关闭',
 				copy: '复制',
 				copied: '已复制',
+				exportSvg: '下载 SVG',
+				exportPng: '下载 PNG',
+				exportFailed: '导出失败，请重试',
+				zoomHintCard: 'Ctrl/⌘ + 滚轮缩放 · 拖拽平移',
 				settingsTitle: 'Mermaid 图表',
 				modeManual: '手动',
 				modeVisible: '滚动可见',
@@ -139,6 +143,10 @@ window.__ModuleLoader__.load({
 				viewerHint: 'Drag to pan · scroll to zoom · double-click to fit · Esc to close',
 				copy: 'Copy',
 				copied: 'Copied',
+				exportSvg: 'Download SVG',
+				exportPng: 'Download PNG',
+				exportFailed: 'Export failed, try again',
+				zoomHintCard: 'Ctrl/⌘ + wheel to zoom · drag to pan',
 				settingsTitle: 'Mermaid diagrams',
 				modeManual: 'On demand',
 				modeVisible: 'When visible',
@@ -533,7 +541,7 @@ window.__ModuleLoader__.load({
 .dsh-mdm-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#247bbf);outline-offset:1px}
 .dsh-mdm-btn:disabled{opacity:.55;cursor:default}
 .dsh-mdm-btn[hidden]{display:none}
-.dsh-mdm-diagram{cursor:zoom-in}
+.dsh-mdm-diagram{cursor:grab}
 .dsh-mdm-lb{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:rgba(8,10,14,.86);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
 .dsh-mdm-lb-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;color:#f2f5fa;flex:none}
 .dsh-mdm-lb-title{font-size:12px;line-height:1;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -555,8 +563,9 @@ window.__ModuleLoader__.load({
 @media (prefers-reduced-motion: reduce){.dsh-mdm-pill{transition:none}}
 .dsh-mdm-body{padding:12px}
 .dsh-mdm-diagram[hidden],.dsh-mdm-content[hidden],.dsh-mdm-source[hidden]{display:none}
-.dsh-mdm-diagram{display:flex;justify-content:center;overflow-x:auto}
-.dsh-mdm-svg{width:100%}
+.dsh-mdm-diagram{display:flex;justify-content:flex-start;overflow:auto;max-height:70vh;touch-action:none}
+.dsh-mdm-diagram[data-dragging="true"]{cursor:grabbing;user-select:none}
+.dsh-mdm-svg{width:100%;margin-inline:auto}
 .dsh-mdm-svg svg{display:block;width:100%;height:auto;max-width:100%}
 .dsh-mdm-msg{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#6b7280)}
 .dsh-mdm-source:not([hidden]) + .dsh-mdm-content:not([hidden]) .dsh-mdm-msg{margin-top:8px}
@@ -680,18 +689,33 @@ window.__ModuleLoader__.load({
 			entry.root?.setAttribute('data-dsh-mermaid-state', entry.state);
 		}
 
-		/** Keep a diagram readable when it is wider than the column, without resizing the code block. */
+		/**
+		 * Size the diagram inside the card: fit to the column until the reader zooms.
+		 *
+		 * Width, not `transform`: a scaled element does not create a scrollable area, so
+		 * `transform` cannot be panned. Width keeps the card's own scroll container in
+		 * charge of both panning directions (see the wheel and drag handlers).
+		 * @param entry - the decoration to size.
+		 */
 		function applyZoom(entry) {
-			if (entry.diagram.hidden || entry.content.clientWidth === 0) {
-				entry.canvas.style.width = '';
-				entry.canvas.style.transform = '';
-				return;
-			}
+			// Recorded before the layout guard: the mode is meaningful even where a
+			// test realm reports no layout, and the CSS/readers can key on it.
+			entry.diagram.dataset.zoom = entry.zoom === null ? 'fit' : 'manual';
+			if (entry.diagram.hidden) return;
+			const svg = entry.canvas.querySelector('svg');
 			const available = entry.content.clientWidth;
-			const natural = entry.canvas.scrollWidth;
-			if (natural > available + 2) entry.canvas.style.transform = `scale(${available / natural})`;
-			else entry.canvas.style.transform = '';
-			entry.canvas.style.width = '';
+			if (svg === null || available === 0) return;
+			const natural = naturalSize(svg);
+			const fit = Math.min(1, available / natural.width);
+			const scale = Math.min(8, Math.max(0.1, entry.zoom ?? fit));
+			const width = Math.max(24, Math.round(natural.width * scale));
+			entry.canvas.style.width = `${width}px`;
+			entry.canvas.style.transform = '';
+			entry.canvas.style.flex = '0 0 auto';
+			entry.canvas.style.marginInline = width < available ? 'auto' : '0';
+			svg.style.width = '100%';
+			svg.style.height = 'auto';
+			svg.style.maxWidth = 'none';
 		}
 
 		/** Build the toolbar and the diagram card that accompany one code block. */
@@ -762,6 +786,83 @@ window.__ModuleLoader__.load({
 			const canvas = document.createElement('div');
 			canvas.className = 'dsh-mdm-svg';
 			diagram.append(canvas);
+			// A title rather than a permanent line: the gesture is worth discovering,
+			// not worth a second toolbar.
+			diagram.title = t('zoomHintCard');
+
+			/**
+			 * Zoom with Ctrl/⌘ + wheel, anchored at the pointer.
+			 *
+			 * A bare wheel scrolls the page: a diagram sits in the reading flow, and
+			 * capturing every wheel would zoom by accident whenever the pointer crosses
+			 * one. Trackpad pinch arrives as a wheel event with ctrlKey set, so pinch
+			 * still works. Delta modes are normalised: a line is about 16 px, a page is
+			 * the height of the container.
+			 */
+			const onWheel = (event) => {
+				if (!event.ctrlKey && !event.metaKey) return;
+				if (entry.state !== 'ok' || entry.diagram.hidden || event.deltaY === 0) return;
+				const before = canvas.getBoundingClientRect();
+				if (before.width <= 0 || before.height <= 0) return;
+				const svg = canvas.querySelector('svg');
+				if (svg === null) return;
+				event.preventDefault();
+				event.stopPropagation();
+				const natural = naturalSize(svg);
+				const fit = Math.min(1, entry.content.clientWidth / natural.width);
+				const current = entry.zoom ?? fit;
+				const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? diagram.clientHeight : 1);
+				const next = current * Math.exp(-Math.max(-200, Math.min(200, delta)) * 0.002);
+				entry.zoom = Math.min(8, Math.max(0.1, next));
+				applyZoom(entry);
+				// Keep the point under the pointer where it was before the resize.
+				const after = canvas.getBoundingClientRect();
+				const anchorX = (event.clientX - before.left) / before.width;
+				const anchorY = (event.clientY - before.top) / before.height;
+				diagram.scrollLeft += after.left + anchorX * after.width - event.clientX;
+				diagram.scrollTop += after.top + anchorY * after.height - event.clientY;
+			};
+			diagram.addEventListener('wheel', onWheel, { passive: false });
+
+			// Drag to pan; the card scrolls itself, so this is plain scrollLeft/Top.
+			let drag = null;
+			const onDown = (event) => {
+				if (event.button !== 0) return;
+				if (typeof event.target.closest === 'function' && event.target.closest('a') !== null) return;
+				drag = { x: event.clientX, y: event.clientY, left: diagram.scrollLeft, top: diagram.scrollTop };
+				diagram.dataset.dragging = 'true';
+				try {
+					diagram.setPointerCapture?.(event.pointerId);
+				} catch {
+					/* a synthetic pointer in tests has no active capture */
+				}
+				event.preventDefault();
+			};
+			const onMove = (event) => {
+				if (drag === null) return;
+				diagram.scrollLeft = drag.left - (event.clientX - drag.x);
+				diagram.scrollTop = drag.top - (event.clientY - drag.y);
+			};
+			const onEnd = (event) => {
+				if (drag === null) return;
+				drag = null;
+				delete diagram.dataset.dragging;
+				try {
+					if (diagram.hasPointerCapture?.(event.pointerId)) diagram.releasePointerCapture(event.pointerId);
+				} catch {
+					/* capture already gone */
+				}
+			};
+			diagram.addEventListener('pointerdown', onDown);
+			diagram.addEventListener('pointermove', onMove);
+			for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) diagram.addEventListener(type, onEnd);
+			entry.disposers.push(() => {
+				diagram.removeEventListener('wheel', onWheel);
+				diagram.removeEventListener('pointerdown', onDown);
+				diagram.removeEventListener('pointermove', onMove);
+				for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) diagram.removeEventListener(type, onEnd);
+			});
+
 			// Double-click is the gesture people try first on a small diagram.
 			diagram.addEventListener('dblclick', () => openLightbox(entry));
 			const error = document.createElement('p');
@@ -812,6 +913,10 @@ window.__ModuleLoader__.load({
 				resize: null,
 				frame: null,
 				hiddenChrome: [],
+				/** Manual scale from the wheel; null means "fit to the column". */
+				zoom: null,
+				/** Teardown for listeners that outlive the element (the card owns none). */
+				disposers: [],
 			};
 			entry.root = buildCard(entry);
 			holder.parentElement.insertBefore(entry.root, holder);
@@ -878,6 +983,7 @@ window.__ModuleLoader__.load({
 			const cached = svgCache.get(key);
 			if (cached !== undefined) {
 				entry.canvas.replaceChildren(svgFragment(cached));
+				entry.zoom = null;
 				entry.state = 'ok';
 				paint(entry);
 				applyZoom(entry);
@@ -952,6 +1058,7 @@ window.__ModuleLoader__.load({
 					entry.surface = palette.palette.background;
 					entry.surfaceDark = palette.dark;
 					entry.canvas.replaceChildren(svgFragment(result.svg));
+					entry.zoom = null;
 					entry.state = 'ok';
 					paint(entry);
 					applyZoom(entry);
@@ -1076,6 +1183,90 @@ window.__ModuleLoader__.load({
 			};
 		}
 
+		/** Local timestamp for an exported file name: 20261111-153045. */
+		function exportStamp() {
+			const now = new Date();
+			const pad = (value) => String(value).padStart(2, '0');
+			return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+		}
+
+		/**
+		 * Serialize a live diagram for download.
+		 *
+		 * Mermaid's SVG is inserted inline and sized by CSS, so a raw clone opens with
+		 * no intrinsic size. The clone gets the namespace and an explicit width and
+		 * height from the viewBox, which is what makes the file usable on its own.
+		 * @param svg - rendered diagram.
+		 * @returns the serialized document and its natural size.
+		 */
+		function serializeSvg(svg) {
+			const size = naturalSize(svg);
+			const clone = svg.cloneNode(true);
+			clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+			clone.setAttribute('width', String(Math.round(size.width)));
+			clone.setAttribute('height', String(Math.round(size.height)));
+			clone.style.width = `${size.width}px`;
+			clone.style.height = `${size.height}px`;
+			clone.style.maxWidth = 'none';
+			const markup = `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(clone)}`;
+			return { markup, size };
+		}
+
+		/** Hand one blob to the browser as a download and release the URL afterwards. */
+		function downloadBlob(blob, filename) {
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = filename;
+			link.rel = 'noopener';
+			document.body.append(link);
+			link.click();
+			link.remove();
+			// The click is synchronous; revoking immediately can cut the download short.
+			window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+		}
+
+		/**
+		 * Export the diagram behind one card as SVG or PNG.
+		 *
+		 * PNG is rasterized locally: the SVG is drawn at up to 2x (capped so the long
+		 * edge stays within 8192 px) and the theme's surface colour is painted first,
+		 * so transparent diagrams do not come out with a dark or transparent
+		 * background.
+		 * @param entry - the decoration whose diagram to export.
+		 * @param format - 'svg' or 'png'.
+		 */
+		async function exportDiagram(entry, format) {
+			const svg = entry.canvas.querySelector('svg');
+			if (svg === null) throw new Error('no diagram to export');
+			const { markup, size } = serializeSvg(svg);
+			const base = `mermaid-${exportStamp()}`;
+			if (format === 'svg') {
+				downloadBlob(new Blob([markup], { type: 'image/svg+xml;charset=utf-8' }), `${base}.svg`);
+				return;
+			}
+			const sourceUrl = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml;charset=utf-8' }));
+			try {
+				const image = new Image();
+				image.src = sourceUrl;
+				await image.decode();
+				const ratio = Math.min(2, 8192 / Math.max(size.width, size.height));
+				const canvas = document.createElement('canvas');
+				canvas.width = Math.max(1, Math.ceil(size.width * ratio));
+				canvas.height = Math.max(1, Math.ceil(size.height * ratio));
+				const context = canvas.getContext('2d');
+				if (context === null) throw new Error('canvas 2d context unavailable');
+				context.fillStyle = knownSurface(entry).color;
+				context.fillRect(0, 0, canvas.width, canvas.height);
+				context.drawImage(image, 0, 0, canvas.width, canvas.height);
+				const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+				if (blob === null) throw new Error('PNG encoding failed');
+				downloadBlob(blob, `${base}.png`);
+			} finally {
+				URL.revokeObjectURL(sourceUrl);
+			}
+		}
+
 		/** Close the open viewer, restoring focus and page scrolling. */
 		function closeLightbox() {
 			if (lightbox === null) return;
@@ -1138,6 +1329,10 @@ window.__ModuleLoader__.load({
 			tools.append(level);
 			const into = mkButton(t('zoomIn'), '+');
 			const fitButton = mkButton(t('zoomFit'), t('zoomFit'));
+			const svgButton = mkButton(t('exportSvg'), 'SVG');
+			svgButton.setAttribute('data-dsh-mermaid-action', 'export-svg');
+			const pngButton = mkButton(t('exportPng'), 'PNG');
+			pngButton.setAttribute('data-dsh-mermaid-action', 'export-png');
 			const closeButton = mkButton(t('close'), '\u00d7');
 			closeButton.style.fontSize = '16px';
 			closeButton.style.padding = '4px 10px';
@@ -1165,6 +1360,21 @@ window.__ModuleLoader__.load({
 			hint.className = 'dsh-mdm-lb-hint';
 			hint.textContent = t('viewerHint');
 			root.append(bar, stage, hint);
+
+			// Export failures belong in the viewer, not the console only.
+			const exportFailed = (error) => {
+				console.error(`${PKG}: export failed`, error);
+				hint.textContent = t('exportFailed');
+				window.setTimeout(() => {
+					if (hint.isConnected) hint.textContent = t('viewerHint');
+				}, 2000);
+			};
+			svgButton.addEventListener('click', () => {
+				exportDiagram(entry, 'svg').catch(exportFailed);
+			});
+			pngButton.addEventListener('click', () => {
+				exportDiagram(entry, 'png').catch(exportFailed);
+			});
 			document.body.append(root);
 			document.body.style.overflow = 'hidden';
 
@@ -1362,6 +1572,8 @@ window.__ModuleLoader__.load({
 			entry.timer = null;
 			entry.resize?.disconnect();
 			entry.resize = null;
+			for (const dispose of entry.disposers ?? []) dispose();
+			entry.disposers = [];
 			entry.pre.hidden = false;
 			for (const child of entry.hiddenChrome ?? []) child.hidden = false;
 			entry.hiddenChrome = [];

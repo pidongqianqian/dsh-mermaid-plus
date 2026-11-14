@@ -6,6 +6,16 @@ Notable changes, newest first. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **In-card zoom and pan.** The diagram is sized by width instead of a transform, so
+  the card's own scroll container can pan. Ctrl/⌘ + wheel zooms around the pointer
+  (10%–800%); a bare wheel is left to the page, so passing over a diagram does not
+  trap the scroll. Dragging pans.
+- **SVG and PNG export** from the viewer toolbar. The SVG is serialized with its
+  namespace and explicit size so it opens on its own; the PNG is rasterized locally,
+  paints the theme surface first, and caps its long edge at 8192 px.
+
 ## [0.5.1] — 2026-11-11
 
 ### Changed

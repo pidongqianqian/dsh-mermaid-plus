@@ -354,6 +354,13 @@ assert.match(
 );
 assert.equal(surface.getAttribute('data-dsh-mermaid-surface'), 'light');
 
+// The viewer is where export lives: the card keeps its header for view/copy/expand.
+assert.ok(
+	dialog.querySelector('[data-dsh-mermaid-action="export-svg"]') !== null
+	&& dialog.querySelector('[data-dsh-mermaid-action="export-png"]') !== null,
+	'the viewer must offer SVG and PNG export',
+);
+
 const level = dialog.querySelector('.dsh-mdm-lb-zoom');
 const before = level.textContent;
 const zoomIn = [...dialog.querySelectorAll('.dsh-mdm-lb-btn')].find((node) => node.getAttribute('aria-label') === 'Zoom in');
@@ -370,7 +377,12 @@ assert.ok(reopen !== null, 'the viewer must open again');
 const closeButton = [...reopen.querySelectorAll('.dsh-mdm-lb-btn')].find((node) => node.getAttribute('aria-label') === 'Close');
 closeButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 assert.equal(window.document.querySelector('.dsh-mdm-lb'), null, 'the close control must close the viewer');
-console.log('ok   viewer             opens, zooms, and closes with Escape and the close control');
+assert.equal(
+	card.querySelector('.dsh-mdm-diagram').getAttribute('data-zoom'),
+	'fit',
+	'a rendered diagram starts fitted to the column',
+);
+console.log('ok   viewer             opens, zooms, exports, and closes with Escape and the close control');
 
 //#endregion
 

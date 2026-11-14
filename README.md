@@ -55,7 +55,7 @@ A fenced ` ```mermaid ` block in the conversation (or in a Markdown file preview
 - **On demand** — the source stays visible and a `Diagram` button waits in the card header; nothing is downloaded or laid out until you press it.
 - **Always** — renders as soon as the block appears (the classic behaviour).
 
-Every rendered diagram can be opened **fullscreen** with zoom and pan, which is the point: a wide flowchart squeezed into the message column is unreadable, while the same diagram at natural size is fine.
+Every rendered diagram can be **zoomed in place** — Ctrl/⌘ + wheel zooms around the pointer (10%–800%), drag pans, and a bare wheel still scrolls the page — or opened **fullscreen**, which is the point: a wide flowchart squeezed into the message column is unreadable, while the same diagram at natural size is fine.
 
 ## Features
 
@@ -68,6 +68,8 @@ Every rendered diagram can be opened **fullscreen** with zoom and pan, which is 
 - **Coexists with other renderers**: a block another Mermaid renderer already claimed, and its error echo, are left alone.
 - **Takes over the code-block frame, not the transcript**: the card replaces the application's frame, keeps its syntax-highlighted body, and puts the frame back on unmount.
 - **Fullscreen viewer**: wheel zoom, drag to pan, double-click to fit, `Esc` to close, focus-trapped dialog, restores focus and page scrolling.
+- **In-card zoom and pan**: Ctrl/⌘ + wheel zooms around the pointer (10%–800%) and dragging pans; a bare wheel is left to the page, so passing over a diagram never traps the scroll of someone reading.
+- **Export**: SVG and PNG from the viewer toolbar. The SVG carries its own namespace and size; the PNG is rasterized locally with the theme background, its long edge capped at 8192 px.
 - Falls back to the visible source with a short error line when a diagram does not parse.
 - Unmounting restores every code block to its original place in the transcript.
 
@@ -189,6 +191,8 @@ see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) and `vendor/*.LICENSE`.
 - 流式输出期间不会渲染半截源码。
 - 渲染结果按「配色 + 源码 + 布局引擎」缓存，切换「代码/图形」或重开全屏都是零成本。
 - 卡片头部可以**复制源码**；当卡片取代应用自己的代码块框时，语言栏与复制按钮的职责由卡片承担。
+- **卡片内即可缩放平移**：`Ctrl/⌘ + 滚轮`以指针为中心缩放（10%–800%），拖拽平移；普通滚轮仍滚动页面，经过图表不会误触。
+- **导出**：全屏查看器工具栏提供 SVG / PNG。SVG 带命名空间与显式尺寸；PNG 在本地栅格化并填充当前主题背景，长边上限 8192 像素。
 - 与其它 Mermaid 渲染器共存：被别的渲染器标记过的块、以及它失败时回显的源码，都不会被重复接管。
 - 解析失败时保留源码并给一行错误提示；ELK 排不出来的图会自动用 dagre 重试一次。
 - 卸载时把每个代码块（连同应用原来的代码框）放回原位，不破坏对话内容。

@@ -260,6 +260,39 @@ record('highlighted body kept', framedFrame?.querySelector('[data-code-block-con
 record('card offers copy in its place', framedCard?.querySelector('[data-dsh-mermaid-action="copy"]') !== null);
 preview.remove();
 
+// 8d. Wheel zoom and drag-to-pan inside the card. The card sizes the diagram by
+// width so its own scroll container can pan, unlike a transform.
+const zoomDiagram = firstCard.querySelector('.dsh-mdm-diagram');
+const zoomCanvas = firstCard.querySelector('.dsh-mdm-svg');
+const zoomBox = zoomCanvas.getBoundingClientRect();
+const centerX = zoomBox.left + zoomBox.width / 2;
+const centerY = zoomBox.top + zoomBox.height / 2;
+const widthOf = () => zoomCanvas.getBoundingClientRect().width;
+const widthBefore = widthOf();
+const wheelAt = (deltaY, modified = false) => new WheelEvent('wheel', {
+  deltaY, clientX: centerX, clientY: centerY, bubbles: true, cancelable: true,
+  ctrlKey: modified,
+});
+// A bare wheel belongs to the page: passing over a diagram must not zoom or trap
+// the scroll of someone reading the transcript.
+const bareKept = zoomDiagram.dispatchEvent(wheelAt(-240));
+await new Promise((resolve) => setTimeout(resolve, 80));
+record('bare wheel leaves the card alone', bareKept === true && Math.abs(widthOf() - widthBefore) < 1,
+  `consumed=${bareKept === false}, width=${Math.round(widthOf())}`);
+const wheelKept = zoomDiagram.dispatchEvent(wheelAt(-240, true));
+await new Promise((resolve) => setTimeout(resolve, 120));
+record('ctrl+wheel zooms in', widthOf() > widthBefore + 2, `${Math.round(widthBefore)} -> ${Math.round(widthOf())}px`);
+record('ctrl+wheel is consumed by the card', wheelKept === false, 'preventDefault was called');
+for (let step = 0; step < 6; step += 1) zoomDiagram.dispatchEvent(wheelAt(-160, true));
+await new Promise((resolve) => setTimeout(resolve, 120));
+const panBefore = zoomDiagram.scrollLeft;
+zoomDiagram.dispatchEvent(new PointerEvent('pointerdown', { button: 0, pointerId: 7, clientX: centerX, clientY: centerY, bubbles: true }));
+zoomDiagram.dispatchEvent(new PointerEvent('pointermove', { pointerId: 7, clientX: centerX - 60, clientY: centerY - 30, bubbles: true }));
+zoomDiagram.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, clientX: centerX - 60, clientY: centerY - 30, bubbles: true }));
+await new Promise((resolve) => setTimeout(resolve, 60));
+record('card drag pans the diagram', zoomDiagram.scrollLeft > panBefore, `${Math.round(panBefore)} -> ${Math.round(zoomDiagram.scrollLeft)}px`);
+record('drag releases the card', zoomDiagram.dataset.dragging === undefined);
+
 // 9. The viewer: a rendered diagram opens enlarged, zooms, and closes.
 const expandButton = firstCard.querySelector('[data-dsh-mermaid-action="expand"]');
 record('expand control present', expandButton !== undefined && !expandButton.hidden);
@@ -294,6 +327,51 @@ record('viewer starts at a fitted size', zoomBefore !== undefined && zoomBefore 
   ?.click();
 await new Promise((resolve) => setTimeout(resolve, 80));
 record('viewer zooms in', zoomLabel?.textContent !== zoomBefore, `${zoomBefore} -> ${zoomLabel?.textContent}`);
+
+// 9b. Export: SVG and PNG are produced locally, with the SVG carrying its own
+// namespace and size and the PNG carrying a theme background.
+record('viewer offers both export formats',
+  document.querySelector('[data-dsh-mermaid-action="export-svg"]') !== null
+  && document.querySelector('[data-dsh-mermaid-action="export-png"]') !== null);
+const exported = [];
+const downloads = [];
+const realCreateObjectUrl = URL.createObjectURL.bind(URL);
+const realRevokeObjectUrl = URL.revokeObjectURL.bind(URL);
+const realAnchorClick = HTMLAnchorElement.prototype.click;
+URL.createObjectURL = (blob) => {
+  exported.push(blob);
+  // A real URL: PNG export rasterizes through an <img> and a fake blob would
+  // never decode.
+  return realCreateObjectUrl(blob);
+};
+URL.revokeObjectURL = () => {};
+HTMLAnchorElement.prototype.click = function () {
+  downloads.push({ href: this.href, name: this.download });
+};
+document.querySelector('[data-dsh-mermaid-action="export-svg"]').click();
+await new Promise((resolve) => setTimeout(resolve, 150));
+const svgBlob = exported[0];
+const svgText = svgBlob === undefined ? '' : await svgBlob.text();
+record('SVG export serializes the diagram',
+  svgText.includes('<svg') && svgText.includes('xmlns="http://www.w3.org/2000/svg"') && svgText.includes('width='),
+  `${svgBlob?.size ?? 0} bytes`);
+record('SVG export downloads a file',
+  downloads[0]?.name?.endsWith('.svg') === true && downloads[0]?.href?.startsWith('blob:') === true,
+  downloads[0]?.name ?? 'none');
+document.querySelector('[data-dsh-mermaid-action="export-png"]').click();
+const pngReady = await waitFor(() => exported.some((blob) => blob.type === 'image/png'), 15000);
+const pngBlob = exported.find((blob) => blob.type === 'image/png');
+const pngHead = pngBlob === undefined ? new Uint8Array() : new Uint8Array(await pngBlob.arrayBuffer()).slice(0, 8);
+record('PNG export produces a PNG file',
+  pngReady && pngBlob?.type === 'image/png' && [...pngHead].join(',') === '137,80,78,71,13,10,26,10',
+  `${pngBlob?.size ?? 0} bytes, signature=${[...pngHead].join(',')}`);
+record('PNG export downloads a file',
+  downloads.some((entry) => entry.name.endsWith('.png')),
+  downloads.map((entry) => entry.name).join(', '));
+URL.createObjectURL = realCreateObjectUrl;
+URL.revokeObjectURL = realRevokeObjectUrl;
+HTMLAnchorElement.prototype.click = realAnchorClick;
+
 document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 await new Promise((resolve) => setTimeout(resolve, 80));
 record('Escape closes the viewer', document.querySelector('.dsh-mdm-lb') === null);
