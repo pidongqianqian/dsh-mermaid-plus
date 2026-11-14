@@ -6,6 +6,8 @@ Notable changes, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-14
+
 ### Added
 
 - **In-card zoom and pan.** The diagram is sized by width instead of a transform, so
