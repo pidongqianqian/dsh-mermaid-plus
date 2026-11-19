@@ -73,6 +73,14 @@ window.__ModuleLoader__.load({
 		 * a direct answer to a click, so it must not feel delayed.
 		 */
 		const SETTLE_MS = { manual: 0, visible: 400, always: 400 };
+		/**
+		 * How long a failed render counts as "the source may still be streaming".
+		 *
+		 * A paused stream can look settled for a few hundred milliseconds and hand
+		 * Mermaid a truncated fence. Within this window a parse failure is retried
+		 * instead of shown: the next chunk usually turns it into a valid diagram.
+		 */
+		const STREAM_GRACE_MS = 1500;
 		/** Diagrams remembered by source+palette, so re-opening one is instant. */
 		const CACHE_LIMIT = 40;
 		/** Namespace for the plugin's own locale dictionary. */
@@ -909,6 +917,10 @@ window.__ModuleLoader__.load({
 				hiddenChrome: [],
 				/** Manual scale from the wheel; null means "fit to the column". */
 				zoom: null,
+				/** Source text last seen by the scanner, for change detection. */
+				lastText: pre.textContent ?? '',
+				/** When that text last changed; a render is "streaming" while fresh. */
+				changedAt: Date.now(),
 				/** Teardown for listeners that outlive the element (the card owns none). */
 				disposers: [],
 			};
@@ -938,8 +950,7 @@ window.__ModuleLoader__.load({
 		}
 
 		/** Debounce one block so streaming source settles before Mermaid sees it. */
-		function schedule(entry) {
-			const delay = SETTLE_MS[hub.snapshot.mode] ?? 0;
+		function schedule(entry, delay = SETTLE_MS[hub.snapshot.mode] ?? 0) {
 			if (entry.timer !== null) window.clearTimeout(entry.timer);
 			entry.timer = window.setTimeout(() => {
 				entry.timer = null;
@@ -1070,6 +1081,16 @@ window.__ModuleLoader__.load({
 						return;
 					}
 					const message = String(error?.message ?? error).slice(0, 400);
+					// Streaming: a fence that was valid a moment ago can be truncated mid
+					// token while the model pauses. Show the source, retry after the grace
+					// window, and only report a failure once the text has stopped moving.
+					if (Date.now() - entry.changedAt < STREAM_GRACE_MS) {
+						entry.hash = '';
+						entry.state = 'pending';
+						paint(entry);
+						schedule(entry, STREAM_GRACE_MS);
+						return;
+					}
 					console.error(`${PKG}: diagram failed to render`, error);
 					entry.state = 'error';
 					entry.error.textContent = message;
@@ -1589,6 +1610,22 @@ window.__ModuleLoader__.load({
 				sweep();
 				const fresh = candidates();
 				for (const code of fresh) adopt(code);
+				// A streaming fence grows inside the card that already owns it, so new
+				// blocks are not the only thing to react to: compare every adopted block
+				// with the text the scanner last saw and re-schedule a render for it.
+				// Without this, a failed render stayed failed until the reader clicked.
+				const now = Date.now();
+				for (const [pre, entry] of [...entries]) {
+					const text = pre.textContent ?? '';
+					if (text === entry.lastText) continue;
+					entry.lastText = text;
+					entry.changedAt = now;
+					if (entry.timer !== null) {
+						window.clearTimeout(entry.timer);
+						entry.timer = null;
+					}
+					if (wanted(entry)) schedule(entry);
+				}
 				// The scan itself stays quiet; only adopted blocks and failures report.
 				if (fresh.length > 0) report('adopted', { count: fresh.length });
 				// A block that belongs to no card and was not recognised: record what the

@@ -309,6 +309,24 @@ await new Promise((resolve) => setTimeout(resolve, 60));
 record('card drag pans the diagram', zoomDiagram.scrollLeft > panBefore, `${Math.round(panBefore)} -> ${Math.round(zoomDiagram.scrollLeft)}px`);
 record('drag releases the card', zoomDiagram.dataset.dragging === undefined);
 
+// 8e. A stream that pauses mid-fence: the truncated source must not surface a
+// parse error, and the settled source must render without a click.
+const pausedBlock = document.createElement('pre');
+pausedBlock.innerHTML = '<code class="language-mermaid">flowchart LR\n  P1 --> </code>';
+document.getElementById('transcript').append(pausedBlock);
+await new Promise((resolve) => setTimeout(resolve, 120));
+pausedBlock.querySelector('code').textContent = 'flowchart LR\n  P1 --> \n  P2 --> ';
+await new Promise((resolve) => setTimeout(resolve, 700));
+const pausedCard = pausedBlock.closest('.dsh-mdm');
+record('paused stream shows no error', pausedCard?.getAttribute('data-dsh-mermaid-state') !== 'error',
+  pausedCard?.getAttribute('data-dsh-mermaid-state') ?? 'not adopted');
+pausedBlock.querySelector('code').textContent = 'flowchart LR\n  P1 --> P2\n  P2 --> P3';
+const pausedSettled = await waitFor(() => pausedCard?.getAttribute('data-dsh-mermaid-state') === 'ok', 20000);
+record('paused stream renders the settled source', pausedSettled && pausedCard.querySelector('.dsh-mdm-svg svg') !== null,
+  pausedCard?.getAttribute('data-dsh-mermaid-state') ?? 'not adopted');
+pausedCard?.remove();
+pausedBlock.remove();
+
 // 9. The viewer: a rendered diagram opens enlarged, zooms, and closes.
 const expandButton = firstCard.querySelector('[data-dsh-mermaid-action="expand"]');
 record('expand control present', expandButton !== undefined && !expandButton.hidden);

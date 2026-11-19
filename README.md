@@ -62,7 +62,7 @@ Every rendered diagram can be **zoomed in place** — Ctrl/⌘ + wheel zooms aro
 - Renders `mermaid`, `mermaidjs`, `mmd` and unlabelled blocks that start with a diagram keyword.
 - Supports the diagram types the bundled Mermaid build ships: `flowchart`/`graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `gantt`, `pie`, `mindmap`, `journey`, `timeline`, `quadrantChart`, `xychart`, `gitGraph`, `requirementDiagram`, `C4`, `block-beta`, `packet-beta`, `sankey-beta`, `kanban`, `architecture-beta`, and more.
 - **Theme-aware**: diagram colours are derived from the app's live design tokens, and a palette change re-renders only the diagrams you are looking at.
-- **Streaming-safe**: a block is handed to Mermaid only after its source settles, so a half-written fence never flashes a parse error.
+- **Streaming-safe**: a block is handed to Mermaid only after its source settles. If a pause still hands over a truncated fence, the failure is retried quietly and the settled source renders on its own — no click needed.
 - **Cached**: a rendered diagram is kept by source + palette + layout engine, so switching between Code and Diagram, or reopening the viewer, costs nothing.
 - **Copy**: the card header copies the fence source, replacing the code block's own toolbar when the card replaces it.
 - **Coexists with other renderers**: a block another Mermaid renderer already claimed, and its error echo, are left alone.

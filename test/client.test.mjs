@@ -106,6 +106,8 @@ const runtime = {
 		this.lastSource = source;
 		if (this.gate !== null) await this.gate;
 		if (source.includes('FAILME')) throw new Error('Parse error on line 2');
+		// A fence truncated mid-edge is what a paused stream hands over.
+		if (/-->\s*$/.test(source)) throw new Error('Parse error on truncated source');
 		if (source.includes('NEEDSDAGRE') && this.lastOptions?.layout === 'elk') {
 			throw new Error('elk cannot lay this out');
 		}
@@ -534,6 +536,47 @@ stalePre.remove();
 await settle();
 //#endregion
 
+//#region streaming source changes
+// A fence grows inside the card that already owns it. The scanner must notice the
+// new text and render again on its own; a failed render during a pause must not be
+// shown as a permanent error.
+setMode('Always');
+const growing = addBlock('mermaid', 'flowchart LR\n  G1 --> G2');
+await settle();
+const growingCard = growing.pre.closest('.dsh-mdm');
+assert.equal(growingCard?.getAttribute('data-dsh-mermaid-state'), 'ok', 'the first version must render');
+const renderBefore = runtime.renderCount;
+growing.code.textContent = 'flowchart LR\n  G1 --> G2\n  G2 --> G3';
+mutate();
+await settle();
+assert.equal(runtime.lastSource, 'flowchart LR\n  G1 --> G2\n  G2 --> G3', 'a changed source must render again without a click');
+assert.equal(growingCard?.getAttribute('data-dsh-mermaid-state'), 'ok');
+assert.ok(runtime.renderCount > renderBefore, 'the re-render must actually call Mermaid');
+console.log('ok   stream growth      a changed fence re-renders without a click');
+
+const paused = addBlock('mermaid', 'flowchart LR\n  P1 --> ');
+await wait(100);
+// Still streaming: the text moves before the settle window closes.
+paused.code.textContent = 'flowchart LR\n  P1 --> \n  P2 --> ';
+mutate();
+await wait(700);
+const pausedCard = paused.pre.closest('.dsh-mdm');
+assert.notEqual(pausedCard?.getAttribute('data-dsh-mermaid-state'), 'error', 'a truncated fence in a moving stream must not surface an error');
+paused.code.textContent = 'flowchart LR\n  P1 --> P2\n  P2 --> P3';
+mutate();
+await settle();
+assert.equal(pausedCard?.getAttribute('data-dsh-mermaid-state'), 'ok', 'the settled fence must render');
+assert.equal(runtime.lastSource, 'flowchart LR\n  P1 --> P2\n  P2 --> P3');
+console.log('ok   stream pause       a truncated fence retries instead of failing');
+
+growingCard?.remove();
+growing.pre.remove();
+pausedCard?.remove();
+paused.pre.remove();
+await settle();
+setMode('On demand');
+//#endregion
+
 //#region status + settings
 const status = renderView(statusView);
 assert.ok(status !== null, 'the status row must appear once diagrams rendered');
@@ -618,7 +661,12 @@ await settle();
 const brokenCard = broken.pre.closest('.dsh-mdm');
 assert.ok(brokenCard !== null, 'the broken block must still be adopted');
 brokenCard.querySelector('[data-dsh-mermaid-action="view"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-await settle();
+// A failure inside the streaming grace window retries once before it is shown.
+for (let attempt = 0; attempt < 25; attempt += 1) {
+	await wait(200);
+	if (brokenCard.getAttribute('data-dsh-mermaid-state') === 'error') break;
+}
+assert.equal(brokenCard.getAttribute('data-dsh-mermaid-state'), 'error', 'a broken diagram must surface its error');
 assert.match(brokenCard.querySelector('.dsh-mdm-msg').textContent, /render|渲染/i);
 assert.match(brokenCard.querySelector('.dsh-mdm-err').textContent, /Parse error/);
 assert.equal(broken.pre.hidden, false, 'a failed diagram must keep the source visible');

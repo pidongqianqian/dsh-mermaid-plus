@@ -6,6 +6,14 @@ Notable changes, newest first. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A fence that paused mid-stream could be rendered truncated, show "render failed",
+  and stay failed until the reader clicked the card. The scanner only adopted new
+  blocks and never re-rendered one whose text had changed; it now tracks source
+  changes and re-schedules a render. A parse failure within 1.5 s of a text change
+  is retried instead of shown, so a paused stream no longer leaves an error behind.
+
 ## [0.6.1] — 2026-11-14
 
 ### Changed
