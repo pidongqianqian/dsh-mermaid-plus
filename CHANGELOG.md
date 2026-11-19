@@ -6,6 +6,8 @@ Notable changes, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.6.2] — 2026-11-19
+
 ### Fixed
 
 - A fence that paused mid-stream could be rendered truncated, show "render failed",

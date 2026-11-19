@@ -1,6 +1,6 @@
 {
   "name": "dsh-mermaid-plus",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Mermaid diagrams for DeepSeek Harness: automatic rendering, compact ELK layout, zoom, pan and SVG/PNG export.",
   "license": "MIT",
   "author": "pidongqianqian",
